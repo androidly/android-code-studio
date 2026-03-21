@@ -80,6 +80,13 @@ class FileModificationAdapter : RecyclerView.Adapter<FileModificationAdapter.Vie
     }
     
     fun addItem(fileName: String) {
+        val existingIndex = items.indexOfFirst { it.fileName == fileName }
+        if (existingIndex != -1) {
+            items[existingIndex] = items[existingIndex].copy(status = Status.MODIFYING)
+            notifyItemChanged(existingIndex)
+            return
+        }
+
         items.add(FileModificationItem(fileName, Status.MODIFYING))
         notifyItemInserted(items.size - 1)
     }

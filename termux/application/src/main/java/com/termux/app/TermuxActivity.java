@@ -651,7 +651,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         if (getDrawer().isDrawerOpen(Gravity.LEFT)) {
             getDrawer().closeDrawers();
         } else {
-            finishActivityIfNotFinishing();
+            super.onBackPressed();
         }
     }
 

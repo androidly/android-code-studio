@@ -25,6 +25,16 @@ java {
   targetCompatibility = JavaVersion.VERSION_1_8
 }
 
+sourceSets {
+  named("main") {
+    java {
+      // The imported OpenJDK snapshot in this repo omits sjavac server sources.
+      // Exclude the incomplete package so the javac classes used by the IDE can still compile.
+      exclude("openjdk/tools/sjavac/**")
+    }
+  }
+}
+
 dependencies {
   api(projects.buildDeps.javaCompiler)
 }

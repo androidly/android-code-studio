@@ -31,7 +31,7 @@ android {
     defaultConfig {
         externalNativeBuild {
             ndkBuild {
-                abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a"))
+                abiFilters.add("arm64-v8a")
             }
         }
     }

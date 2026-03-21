@@ -21,6 +21,7 @@ import android.content.Context
 import com.tom.rv2ide.artificial.agents.google.Gemini
 import com.tom.rv2ide.artificial.agents.openai.OpenAI
 import com.tom.rv2ide.artificial.agents.anthropic.Anthropic
+import com.tom.rv2ide.artificial.agents.custom.CustomProviderAgent
 import com.tom.rv2ide.artificial.agents.grok.Grok
 import com.tom.rv2ide.artificial.agents.deepseek.DeepSeek
 import com.tom.rv2ide.artificial.agents.local.LocalLLM
@@ -29,6 +30,10 @@ import com.tom.rv2ide.artificial.parser.SnippetParser
 import com.tom.rv2ide.artificial.permissions.AIPermissionManager
 import com.tom.rv2ide.artificial.project.awareness.ProjectData
 import com.tom.rv2ide.artificial.secrets.ApiKey
+import com.tom.rv2ide.artificial.tools.AIToolCall
+import com.tom.rv2ide.artificial.tools.AIToolCallParser
+import com.tom.rv2ide.artificial.tools.AIToolExecutionResult
+import com.tom.rv2ide.artificial.tools.AIToolExecutor
 import java.io.File
 import kotlinx.coroutines.delay
 import com.tom.rv2ide.artificial.dialogs.ProviderSwitchDialog
@@ -37,10 +42,21 @@ class AIAgentManager(private val context: Context) {
 
     private val snippetParser = SnippetParser()
     private val permissionManager = AIPermissionManager(context)
+    private val toolExecutor = AIToolExecutor(
+        context = context,
+        projectRootProvider = { currentProjectRoot },
+        writeFile = { filePath, content ->
+            currentAgent?.writeFile(filePath, content) ?: FileWriteResult.Error("No agent initialized")
+        },
+        recordModification = { filePath, oldContent, newContent, success ->
+            currentAgent?.recordModification(filePath, oldContent, newContent, success)
+        }
+    )
     private var currentProjectRoot: File? = null
-    private var currentProviderId: String = "gemini"
+    private var currentProviderId: String = Agents(context).getProvider()
     private var currentAgent: AIAgent? = null
     private val providerSwitchDialog = ProviderSwitchDialog(context)
+    private val maxToolRounds = 4
 
     init {
         Gemini.registerAgent()
@@ -49,11 +65,20 @@ class AIAgentManager(private val context: Context) {
         Grok.registerAgent()
         DeepSeek.registerAgent()
         LocalLLM.registerAgent()
+        CustomProviderAgent.registerAgent()
         
         permissionManager.setFileWriteEnabled(true)
         permissionManager.setRequireConfirmation(false)
         
-        setProvider(currentProviderId)
+        if (!setProvider(currentProviderId)) {
+            AIAgentRegistry.getAvailableProviders()
+                .firstOrNull()
+                ?.takeIf { it != currentProviderId }
+                ?.let { fallbackProvider ->
+                    currentProviderId = fallbackProvider
+                    setProvider(fallbackProvider)
+                }
+        }
     }
     
     fun getCurrentAgent(): AIAgent? = currentAgent
@@ -147,50 +172,35 @@ class AIAgentManager(private val context: Context) {
                     delay(1000)
                 }
 
-                val previousFileStates = captureCurrentFileStates()
-
-                val result = currentAgent?.generateCode(
-                    prompt = userRequest,
-                    context = null,
-                    language = "kotlin",
-                    projectStructure = null
-                ) ?: Result.failure(Exception("No agent initialized"))
+                val result = resolveAgentResponse(userRequest, callback)
 
                 result.fold(
-                    onSuccess = { response ->
-                        
+                    onSuccess = { resolvedResponse ->
+                        val response = resolvedResponse.response
+                        val modifications = resolvedResponse.toolModifications.toMutableList()
+
                         if (response.contains("FILE_TO_MODIFY:")) {
                             callback.onProcessing("Modifying files...")
-                            val modifications = processModifications(response, previousFileStates, callback)
+                            modifications += processModifications(response, callback)
+                        }
 
-                            if (modifications.isNotEmpty()) {
-                                val allSuccessful = modifications.all { it.writeResult is FileWriteResult.Success }
+                        if (modifications.isNotEmpty()) {
+                            val allSuccessful = modifications.all { it.writeResult is FileWriteResult.Success }
 
-                                if (allSuccessful) {
-                                    val results = modifications.map { mod ->
-                                        val isNewFile = !previousFileStates.containsKey(mod.filePath)
-                                        ModificationResult(
-                                            filePath = mod.filePath,
-                                            content = mod.content,
-                                            success = true,
-                                            message = "Modified successfully",
-                                            isNewFile = isNewFile
-                                        )
-                                    }
-
-                                    val summary = createSummary(results)
-                                    callback.onSuccess(response, results, summary)
-                                    success = true
-                                } else {
-                                    callback.onProcessing("Some files failed. Retrying...")
-                                    currentAgent?.incrementAttemptCount()
-                                    delay(1500)
-                                }
+                            if (allSuccessful) {
+                                val results = buildModificationResults(modifications)
+                                val summary = createSummary(results)
+                                callback.onSuccess(response, results, summary)
+                                success = true
                             } else {
-                                callback.onProcessing("No files were modified. Retrying...")
+                                callback.onProcessing("Some files failed. Retrying...")
                                 currentAgent?.incrementAttemptCount()
                                 delay(1500)
                             }
+                        } else if (response.contains("FILE_TO_MODIFY:")) {
+                            callback.onProcessing("No files were modified. Retrying...")
+                            currentAgent?.incrementAttemptCount()
+                            delay(1500)
                         } else {
                             val summary = ModificationSummary(0, 0, 0, 0, 0, emptyList())
                             callback.onTextResponse(response, summary)
@@ -284,7 +294,6 @@ class AIAgentManager(private val context: Context) {
 
     private suspend fun processModifications(
         response: String,
-        previousFileStates: Map<String, String>,
         callback: AIAgentCallback
     ): List<BaseFileModification> {
         val modifications = mutableListOf<BaseFileModification>()
@@ -304,7 +313,7 @@ class AIAgentManager(private val context: Context) {
 
                         val rawContent = contentBuilder.toString().trim()
                         val cleanedContent = parser.cleanFileContent(rawContent)
-                        val previousContent = previousFileStates[currentFile]
+                        val previousContent = readCurrentFileContent(currentFile)
 
                         val writeResult = currentAgent?.writeFile(currentFile, cleanedContent)
                             ?: FileWriteResult.Error("No agent initialized")
@@ -315,7 +324,14 @@ class AIAgentManager(private val context: Context) {
                         callback.onFileModified(currentFile, fileName, success)
                         delay(300)
 
-                        modifications.add(BaseFileModification(currentFile, cleanedContent, writeResult))
+                        modifications.add(
+                            BaseFileModification(
+                                filePath = currentFile,
+                                content = cleanedContent,
+                                writeResult = writeResult,
+                                previousContent = previousContent
+                            )
+                        )
                     }
 
                     currentFile = line.substringAfter("FILE_TO_MODIFY:").trim()
@@ -332,7 +348,7 @@ class AIAgentManager(private val context: Context) {
 
                 val rawContent = contentBuilder.toString().trim()
                 val cleanedContent = parser.cleanFileContent(rawContent)
-                val previousContent = previousFileStates[currentFile]
+                val previousContent = readCurrentFileContent(currentFile)
 
                 val writeResult = currentAgent?.writeFile(currentFile, cleanedContent)
                     ?: FileWriteResult.Error("No agent initialized")
@@ -343,11 +359,255 @@ class AIAgentManager(private val context: Context) {
                 callback.onFileModified(currentFile, fileName, success)
                 delay(300)
 
-                modifications.add(BaseFileModification(currentFile, cleanedContent, writeResult))
+                modifications.add(
+                    BaseFileModification(
+                        filePath = currentFile,
+                        content = cleanedContent,
+                        writeResult = writeResult,
+                        previousContent = previousContent
+                    )
+                )
             }
         }
 
         return modifications
+    }
+
+    private suspend fun resolveAgentResponse(
+        userRequest: String,
+        callback: AIAgentCallback
+    ): Result<ResolvedAgentResponse> {
+        val toolResults = mutableListOf<AIToolExecutionResult>()
+        val toolModifications = mutableListOf<BaseFileModification>()
+
+        repeat(maxToolRounds + 1) { round ->
+            val context = buildToolContext(toolResults)
+            val result = currentAgent?.generateCode(
+                prompt = userRequest,
+                context = context,
+                language = "kotlin",
+                projectStructure = null
+            ) ?: Result.failure(Exception("No agent initialized"))
+
+            result.exceptionOrNull()?.let { return Result.failure(it) }
+            val response = result.getOrNull() ?: return Result.failure(Exception("Empty AI response"))
+
+            val toolCalls = AIToolCallParser.parseToolCalls(response)
+            if (toolCalls.isEmpty()) {
+                return Result.success(
+                    ResolvedAgentResponse(
+                        response = response,
+                        toolModifications = toolModifications.toList()
+                    )
+                )
+            }
+
+            if (round >= maxToolRounds) {
+                return Result.failure(
+                    IllegalStateException("Tool call limit exceeded. The agent kept requesting tools without producing a final answer.")
+                )
+            }
+
+            if (!permissionManager.isToolExecutionEnabled()) {
+                toolResults += AIToolExecutionResult(
+                    toolName = "tool_permission",
+                    success = false,
+                    summary = "Tool execution is disabled",
+                    output = "Enable AI Tool Execution in AI Preferences to allow builds, Termux package installs, and safe terminal commands."
+                )
+                callback.onProcessing("AI requested a tool, but AI Tool Execution is disabled in settings.")
+                return@repeat
+            }
+
+            if (response.contains("FILE_TO_MODIFY:")) {
+                toolResults += AIToolExecutionResult(
+                    toolName = "tool_protocol",
+                    success = false,
+                    summary = "The model mixed TOOL_CALL and FILE_TO_MODIFY in a single response.",
+                    output = "Return only TOOL_CALL blocks when a tool is needed. After tool results are available, send FILE_TO_MODIFY blocks or plain text in a later response."
+                )
+                return@repeat
+            }
+
+            callback.onProcessing("Executing ${toolCalls.size} tool request(s)...")
+
+            toolCalls.forEach { toolCall ->
+                callback.onProcessing(formatToolStartMessage(toolCall))
+                val toolResult = toolExecutor.execute(toolCall)
+                toolResults += toolResult
+                toolResult.fileChange?.let { fileChange ->
+                    val fileName = File(fileChange.filePath).name
+                    callback.onFileModifying(fileChange.filePath, fileName)
+                    val writeSuccessful = fileChange.writeResult is FileWriteResult.Success
+                    callback.onFileModified(fileChange.filePath, fileName, writeSuccessful)
+                    toolModifications += BaseFileModification(
+                        filePath = fileChange.filePath,
+                        content = fileChange.newContent,
+                        writeResult = fileChange.writeResult,
+                        previousContent = fileChange.previousContent
+                    )
+                }
+                callback.onProcessing(formatToolEndMessage(toolResult))
+            }
+        }
+
+        return Result.failure(IllegalStateException("Tool call loop terminated unexpectedly"))
+    }
+
+    private fun buildToolContext(toolResults: List<AIToolExecutionResult>): String {
+        val toolExecutionEnabled = permissionManager.isToolExecutionEnabled()
+
+        return buildString {
+            appendLine("=== AI TOOLING ===")
+            appendLine("TOOL_EXECUTION_ENABLED: $toolExecutionEnabled")
+            if (toolExecutionEnabled) {
+                appendLine("You may request tools when you need to compile, inspect the environment, search the project, read focused file ranges, edit focused file ranges, run safe terminal commands, or install Termux packages.")
+                appendLine("When you need a tool, output ONLY one or more TOOL_CALL blocks. Do NOT mix TOOL_CALL with FILE_TO_MODIFY or explanations.")
+                appendLine()
+                appendLine("Supported tools:")
+                appendLine("TOOL_CALL: find_files")
+                appendLine("PATTERN: *MainActivity*.kt")
+                appendLine("MAX_RESULTS: 20")
+                appendLine()
+                appendLine("TOOL_CALL: search_project")
+                appendLine("PATTERN: class MainActivity")
+                appendLine("FILE_GLOB: *.kt")
+                appendLine("MAX_RESULTS: 20")
+                appendLine()
+                appendLine("TOOL_CALL: read_file_range")
+                appendLine("FILE: core/app/src/main/java/com/example/MainActivity.kt")
+                appendLine("START_LINE: 120")
+                appendLine("END_LINE: 220")
+                appendLine()
+                appendLine("TOOL_CALL: replace_file_range")
+                appendLine("FILE: core/app/src/main/java/com/example/MainActivity.kt")
+                appendLine("START_LINE: 140")
+                appendLine("END_LINE: 165")
+                appendLine("CONTENT:")
+                appendLine("```kotlin")
+                appendLine("// replacement block here")
+                appendLine("```")
+                appendLine()
+                appendLine("TOOL_CALL: build_project")
+                appendLine("TASKS: :app:assembleDebug")
+                appendLine("ARGS: --stacktrace --info")
+                appendLine("WORKDIR: PROJECT_ROOT")
+                appendLine()
+                appendLine("TOOL_CALL: run_terminal_command")
+                appendLine("COMMAND: pkg install ripgrep -y")
+                appendLine("WORKDIR: HOME")
+                appendLine()
+                appendLine("Tool rules:")
+                appendLine("- Prefer find_files and search_project to locate the relevant file or symbol before reading content.")
+                appendLine("- Prefer read_file_range and inspect only the relevant 50-200 lines, not an entire file, unless absolutely necessary.")
+                appendLine("- Prefer replace_file_range for focused edits instead of rewriting a whole file.")
+                appendLine("- Prefer build_project for any Gradle wrapper build or compile command.")
+                appendLine("- Use run_terminal_command for safe non-build terminal commands such as pkg/apt/git/rg/ls/find/cat/head/tail/grep/python/cmake.")
+                appendLine("- Use non-interactive flags when possible, for example pkg install -y.")
+                appendLine("- Do not request dangerous commands, shell operators, pipes, redirects, or command chaining.")
+                appendLine("- After tool results are returned, either request another tool or produce FILE_TO_MODIFY blocks / final text.")
+            } else {
+                appendLine("Tool execution is disabled in settings.")
+                appendLine("Do NOT emit TOOL_CALL blocks while tool execution is disabled.")
+                appendLine("If tools are needed, tell the user to enable AI Tool Execution from AI preferences first.")
+            }
+
+            if (toolResults.isNotEmpty()) {
+                appendLine()
+                appendLine("=== TOOL RESULTS ===")
+                toolResults.takeLast(4).forEachIndexed { index, result ->
+                    appendLine(result.toContextBlock(index + 1))
+                    appendLine()
+                }
+            }
+        }.trim()
+    }
+
+    private fun formatToolStartMessage(toolCall: AIToolCall): String {
+        val details = when (toolCall.name.lowercase()) {
+            "find_files" -> toolCall.argument("pattern") ?: ""
+            "search_project" -> toolCall.argument("pattern") ?: ""
+            "read_file_range" -> listOfNotNull(
+                toolCall.argument("file"),
+                toolCall.argument("start_line")?.let { "lines $it-${toolCall.argument("end_line") ?: "?"}" }
+            ).joinToString(" ")
+            "replace_file_range" -> listOfNotNull(
+                toolCall.argument("file"),
+                toolCall.argument("start_line")?.let { "lines $it-${toolCall.argument("end_line") ?: "?"}" }
+            ).joinToString(" ")
+            "build_project" -> toolCall.argument("tasks") ?: ""
+            "run_terminal_command" -> toolCall.argument("command") ?: ""
+            else -> ""
+        }
+        val workdir = toolCall.argument("workdir")?.takeIf { it.isNotBlank() }
+
+        return if (details.isBlank()) {
+            buildString {
+                append("Running tool: ${toolCall.name}")
+                workdir?.let { append("\nWorkdir: $it") }
+            }
+        } else {
+            buildString {
+                append("Running tool: ${toolCall.name} [$details]")
+                workdir?.let { append("\nWorkdir: $it") }
+            }
+        }
+    }
+
+    private fun formatToolEndMessage(toolResult: AIToolExecutionResult): String {
+        val status = if (toolResult.success) "completed" else "failed"
+        val exitCode = toolResult.exitCode?.let { " (exit=$it)" }.orEmpty()
+        val outputPreview = toolResult.output
+            .takeIf { it.isNotBlank() }
+            ?.let(::buildToolOutputPreview)
+
+        return buildString {
+            append("Tool ${toolResult.toolName} $status$exitCode")
+            append("\nSummary: ${toolResult.summary}")
+            toolResult.executedCommand?.takeIf { it.isNotBlank() }?.let {
+                append("\nCommand: $it")
+            }
+            toolResult.workingDirectory?.takeIf { it.isNotBlank() }?.let {
+                append("\nWorkdir: $it")
+            }
+            outputPreview?.takeIf { it.isNotBlank() }?.let {
+                append("\nOutput tail:\n")
+                append(it)
+            }
+        }
+    }
+
+    private fun buildToolOutputPreview(output: String): String {
+        val trimmed = output.trim()
+        if (trimmed.isBlank()) {
+            return ""
+        }
+
+        return if (trimmed.length > 1200) {
+            trimmed.takeLast(1200)
+        } else {
+            trimmed
+        }
+    }
+
+    private fun buildModificationResults(
+        modifications: List<BaseFileModification>
+    ): List<ModificationResult> {
+        return modifications.map { modification ->
+            val writeResult = modification.writeResult
+            val success = writeResult is FileWriteResult.Success
+            ModificationResult(
+                filePath = modification.filePath,
+                content = modification.content,
+                success = success,
+                message = when (writeResult) {
+                    is FileWriteResult.Success -> "Modified successfully"
+                    is FileWriteResult.PermissionDenied -> writeResult.reason
+                    is FileWriteResult.Error -> writeResult.message
+                },
+                isNewFile = modification.previousContent == null
+            )
+        }
     }
 
     private fun formatErrorMessage(error: Throwable): String {
@@ -447,27 +707,17 @@ class AIAgentManager(private val context: Context) {
         )
     }
 
-    private fun captureCurrentFileStates(): Map<String, String> {
-        val states = mutableMapOf<String, String>()
-        val projectRoot = currentProjectRoot ?: return states
-
-        if (!projectRoot.exists()) return states
-
-        projectRoot.walkTopDown()
-            .filter { it.isFile }
-            .filter {
-                it.extension in listOf("kt", "java", "xml", "gradle", "kts") &&
-                !it.path.contains("/build/") &&
-                !it.path.contains("/.gradle/")
+    private fun readCurrentFileContent(filePath: String): String? {
+        return try {
+            val file = File(filePath)
+            if (file.exists() && file.isFile) {
+                file.readText()
+            } else {
+                null
             }
-            .forEach { file ->
-                try {
-                    states[file.absolutePath] = file.readText()
-                } catch (e: Exception) {
-                }
-            }
-
-        return states
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun undoLastModification(): Boolean {
@@ -546,7 +796,13 @@ class AIAgentManager(private val context: Context) {
 data class BaseFileModification(
     val filePath: String,
     val content: String,
-    val writeResult: FileWriteResult
+    val writeResult: FileWriteResult,
+    val previousContent: String?
+)
+
+data class ResolvedAgentResponse(
+    val response: String,
+    val toolModifications: List<BaseFileModification>
 )
 
 data class UnifiedModificationAttempt(

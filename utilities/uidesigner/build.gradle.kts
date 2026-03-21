@@ -22,6 +22,7 @@ plugins {
   id("com.android.library")
   id("kotlin-android")
   id("kotlin-parcelize")
+  id("androidx.navigation.safeargs.kotlin")
 }
 
 

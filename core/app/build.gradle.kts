@@ -42,10 +42,37 @@ buildscript {
   }
 }
 
-tasks.configureEach {
-    if (name.contains("desugar", ignoreCase = true)) {
-        enabled = false
+val localProperties =
+    Properties().apply {
+      val localPropertiesFile = rootProject.file("local.properties")
+      if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use(::load)
+      }
     }
+
+val signingStorePath =
+    System.getenv("SIGNING_STORE_FILE")
+        ?: localProperties.getProperty("signing.storeFile")
+        ?: "signing/signing-key.jks"
+val signingStorePassword =
+    System.getenv("SIGNING_STORE_PASSWORD") ?: localProperties.getProperty("signing.storePassword")
+val signingKeyAlias =
+    System.getenv("SIGNING_KEY_ALIAS")
+        ?: localProperties.getProperty("signing.keyAlias")
+        ?: "AndroidCS"
+val signingKeyPassword =
+    System.getenv("SIGNING_KEY_PASSWORD") ?: localProperties.getProperty("signing.keyPassword")
+val customSigningStoreFile = rootProject.file(signingStorePath)
+val hasCustomSigning =
+    customSigningStoreFile.exists()
+        && !signingStorePassword.isNullOrBlank()
+        && !signingKeyAlias.isNullOrBlank()
+        && !signingKeyPassword.isNullOrBlank()
+
+if (!hasCustomSigning) {
+  logger.lifecycle(
+      "Custom signing is not fully configured; falling back to the default debug keystore for local packaging."
+  )
 }
 
 configurations.all {
@@ -75,16 +102,12 @@ android {
 
   signingConfigs {
       create("custom") {
-          val keyStorePath = "${rootProject.projectDir}/signing/signing-key.jks"
-          val keyStoreFile = file(keyStorePath)
-          
-          val signing_storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: ""
-          val signing_keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: ""
-          
-          storeFile = keyStoreFile
-          storePassword = signing_storePassword
-          keyAlias = "AndroidCS"
-          keyPassword = signing_keyPassword
+          if (hasCustomSigning) {
+              storeFile = customSigningStoreFile
+              storePassword = signingStorePassword
+              keyAlias = signingKeyAlias
+              keyPassword = signingKeyPassword
+          }
       }
   }
 
@@ -97,12 +120,22 @@ android {
 
   buildTypes {
     debug {
-      signingConfig = signingConfigs.getByName("custom")
+      signingConfig =
+          if (hasCustomSigning) {
+            signingConfigs.getByName("custom")
+          } else {
+            signingConfigs.getByName("debug")
+          }
     }
 
     release {
       isShrinkResources = false
-      signingConfig = signingConfigs.getByName("custom")
+      signingConfig =
+          if (hasCustomSigning) {
+            signingConfigs.getByName("custom")
+          } else {
+            signingConfigs.getByName("debug")
+          }
     }
   }
   
@@ -135,19 +168,18 @@ android {
                 val variantName = variant.name.lowercase()
                 when {
                   variantName.contains("arm64") -> "arm64-v8a"
-                  variantName.contains("armeabi") || variantName.contains("arm7") -> "armeabi-v7a"
                   else -> {
                     // This should not happen with our configuration
                     throw IllegalStateException(
-                        "Could not determine ABI for variant: $variantName. Expected arm64-v8a or armeabi-v7a."
+                        "Could not determine ABI for variant: $variantName. Expected arm64-v8a."
                     )
                   }
                 }
               }
 
-      if (archSuffix !in listOf("arm64-v8a", "armeabi-v7a")) {
+      if (archSuffix != "arm64-v8a") {
         throw IllegalStateException(
-            "Unsupported architecture: $archSuffix. Only arm64-v8a and armeabi-v7a are supported."
+            "Unsupported architecture: $archSuffix. Only arm64-v8a is supported."
         )
       }
 

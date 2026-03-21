@@ -16,6 +16,7 @@
 */
 package com.tom.rv2ide.artificial.secrets
 
+import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
 import com.tom.rv2ide.preferences.internal.prefManager
 
 /*
@@ -78,6 +79,15 @@ object ApiKey {
         val key = getGrokApiKey()
         return key.isNotBlank() && key.length > 20
     }
+
+    // Custom provider config
+    fun getCustomApiKey(): String {
+        return CustomProviderConfig.getApiKey()
+    }
+
+    fun hasCustomProviderConfig(): Boolean {
+        return CustomProviderConfig.hasValidConfig()
+    }
     
     // Legacy methods for backward compatibility
     @Deprecated("Use getGeminiApiKey() instead", ReplaceWith("getGeminiApiKey()"))
@@ -93,6 +103,7 @@ object ApiKey {
         if (hasDeepseekKey()) providers.add("Deepseek")
         if (hasAnthropicKey()) providers.add("Anthropic")
         if (hasGrokKey()) providers.add("Grok")
+        if (hasCustomProviderConfig()) providers.add("Custom")
         return providers
     }
     
@@ -103,13 +114,14 @@ object ApiKey {
             "openai" to getOpenAIApiKey(),
             "deepseek" to getDeepseekApiKey(),
             "anthropic" to getAnthropicApiKey(),
-            "grok" to getGrokApiKey()
+            "grok" to getGrokApiKey(),
+            "custom" to getCustomApiKey()
         ).filterValues { it.isNotBlank() }
     }
     
     // Check if any API key is configured
     fun hasAnyApiKey(): Boolean {
-        return hasGeminiKey() || hasOpenAIKey() || hasDeepseekKey() || 
-               hasAnthropicKey() || hasGrokKey()
+        return hasGeminiKey() || hasOpenAIKey() || hasDeepseekKey() ||
+               hasAnthropicKey() || hasGrokKey() || hasCustomProviderConfig()
     }
 }

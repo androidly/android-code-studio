@@ -123,7 +123,11 @@ class AIRequestHandler(
         summary: AIAgentManager.ModificationSummary
     ) {
         progressIndicator.visibility = View.GONE
-        statusText.text = "✅ Operation completed"
+        statusText.text = if (response.isNotBlank() && !response.contains("FILE_TO_MODIFY:")) {
+            response
+        } else {
+            "✅ Operation completed"
+        }
         summaryText.text = buildSummaryText(summary)
         summaryCard.visibility = View.VISIBLE
         

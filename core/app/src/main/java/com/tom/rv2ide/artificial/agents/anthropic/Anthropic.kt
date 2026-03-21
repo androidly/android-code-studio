@@ -184,7 +184,6 @@ class Anthropic : AIAgent {
                   IllegalStateException("Anthropic service not initialized")
               )
 
-          val fileContents = readRelevantFiles()
           val needsCorrection = isUserRequestingCorrection(prompt)
 
           val fullPrompt = buildString {
@@ -196,15 +195,7 @@ class Anthropic : AIAgent {
               append("CRITICAL: Look at the actual paths above and use those EXACT paths.\n\n")
             }
             
-            if (fileContents.isNotEmpty()) {
-              append("=== CURRENT FILES CONTENT ===\n")
-              fileContents.forEach { (path, content) ->
-                append("FILE: $path\n")
-                append("CONTENT:\n")
-                append(content)
-                append("\n\n")
-              }
-            }
+            append("IMPORTANT: File contents are not preloaded. Use project search and focused file-range reads to inspect only the relevant 50-200 lines before editing.\n\n")
             
             if (context != null) {
               append("=== ADDITIONAL CONTEXT ===\n")

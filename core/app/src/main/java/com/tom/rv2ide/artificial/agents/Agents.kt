@@ -20,6 +20,7 @@ package com.tom.rv2ide.artificial.agents
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
+import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
 
 /**
  * @author Mohammed-baqer-null @ https://github.com/Mohammed-baqer-null
@@ -143,8 +144,12 @@ class Agents(ctx: Context) {
   private val localllm_models = arrayOf(
     "local-model"
   )
+
+  private val custom_provider_models: Array<String>
+    get() = CustomProviderConfig.getAvailableModels().toTypedArray()
   
-  val ai_agents = openai_models + claude_models + gemini_models + deepseek_models + grok_models + localllm_models
+  val ai_agents: Array<String>
+    get() = openai_models + claude_models + gemini_models + deepseek_models + grok_models + localllm_models + custom_provider_models
   
   fun getModelsForProvider(providerId: String): Array<String> {
     return when(providerId) {
@@ -154,6 +159,7 @@ class Agents(ctx: Context) {
       "deepseek" -> deepseek_models
       "grok" -> grok_models
       "localllm" -> localllm_models
+      "custom" -> custom_provider_models
       else -> gemini_models
     }
   }
@@ -166,6 +172,7 @@ class Agents(ctx: Context) {
       modelName in deepseek_models -> "deepseek"
       modelName in grok_models -> "grok"
       modelName in localllm_models -> "localllm"
+      modelName in custom_provider_models || modelName == CustomProviderConfig.getModelId() -> "custom"
       else -> null
     }
   }
@@ -177,6 +184,9 @@ class Agents(ctx: Context) {
           name in claude_models -> "claude"
           name in deepseek_models -> "deepseek"
           name in grok_models -> "grok"
+          name in localllm_models -> "localllm"
+          name in custom_provider_models -> "custom"
+          (sp.getString(PROVIDER_KEY, "gemini") ?: "gemini") == "custom" && name.isNotBlank() -> "custom"
           else -> sp.getString(PROVIDER_KEY, "gemini") ?: "gemini"
       }
       
@@ -194,6 +204,9 @@ class Agents(ctx: Context) {
       "claude" -> "claude-sonnet-4-20250514"
       "deepseek" -> "deepseek-chat"
       "grok" -> "grok-beta"
+      "localllm" -> "local-model"
+      "custom" -> CustomProviderConfig.getModelId()
+        .ifBlank { custom_provider_models.firstOrNull() ?: "" }
       else -> "gemini-2.5-pro"
     }
   }
@@ -207,6 +220,9 @@ class Agents(ctx: Context) {
   }
   
   fun isValidModelForProvider(modelName: String, providerId: String): Boolean {
+    if (providerId == "custom") {
+      return modelName.isNotBlank()
+    }
     return modelName in getModelsForProvider(providerId)
   }
 }

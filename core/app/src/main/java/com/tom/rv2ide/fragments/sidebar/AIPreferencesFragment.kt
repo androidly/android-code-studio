@@ -16,7 +16,10 @@ import com.google.android.material.textview.MaterialTextView
 import com.tom.rv2ide.R
 import com.tom.rv2ide.artificial.agents.AIAgentManager
 import com.tom.rv2ide.artificial.agents.Agents
+import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
+import com.tom.rv2ide.artificial.dialogs.CustomProviderConfigDialog
 import com.tom.rv2ide.artificial.dialogs.ProviderSwitchDialog
+import com.tom.rv2ide.artificial.permissions.AIPermissionManager
 import com.tom.rv2ide.managers.CodeCompletionManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -32,11 +35,13 @@ class AIPreferencesFragment(
     private lateinit var providerDropdown: AutoCompleteTextView
     private lateinit var modelDropdown: AutoCompleteTextView
     private lateinit var autoSwitchToggle: MaterialSwitch
+    private lateinit var toolExecutionToggle: MaterialSwitch
     private lateinit var codeCompletionToggle: MaterialSwitch
     private lateinit var currentProviderText: MaterialTextView
     private lateinit var currentModelText: MaterialTextView
     
     private val providerSwitchDialog by lazy { ProviderSwitchDialog(requireContext()) }
+    private val permissionManager by lazy { AIPermissionManager(requireContext()) }
     
     private var completionStateMonitorJob: Job? = null
     private var isCompletionEnabled = true
@@ -77,6 +82,7 @@ class AIPreferencesFragment(
         providerDropdown = view.findViewById(R.id.providerDropdown)
         modelDropdown = view.findViewById(R.id.modelDropdown)
         autoSwitchToggle = view.findViewById(R.id.autoSwitchToggle)
+        toolExecutionToggle = view.findViewById(R.id.toolExecutionToggle)
         codeCompletionToggle = view.findViewById(R.id.codeCompletionToggle)
         currentProviderText = view.findViewById(R.id.currentProviderText)
         currentModelText = view.findViewById(R.id.currentModelText)
@@ -89,10 +95,11 @@ class AIPreferencesFragment(
             "claude" to "Anthropic Claude",
             "deepseek" to "DeepSeek",
             "grok" to "xAI Grok",
-            "localllm" to "Local LLM"
+            "localllm" to "Local LLM",
+            "custom" to "Custom Provider"
         )
         
-        val allProviderIds = listOf("gemini", "openai", "claude", "deepseek", "grok", "localllm")
+        val allProviderIds = listOf("gemini", "openai", "claude", "deepseek", "grok", "localllm", "custom")
         val providerNames = allProviderIds.map { providerMap[it] ?: it }
         
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, providerNames)
@@ -106,6 +113,8 @@ class AIPreferencesFragment(
             
             if (selectedProviderId == "localllm") {
                 showLocalLLMConfigDialog(selectedProviderName)
+            } else if (selectedProviderId == "custom") {
+                showCustomProviderConfigDialog(selectedProviderName)
             } else {
                 handleProviderChange(selectedProviderId, selectedProviderName)
             }
@@ -113,10 +122,23 @@ class AIPreferencesFragment(
     }
     
     private fun showLocalLLMConfigDialog(providerName: String) {
-        val dialog = LocalLLMConfigDialog { baseUrl, modelName ->
+        val dialog = LocalLLMConfigDialog { _, _ ->
             handleProviderChange("localllm", providerName)
         }
         dialog.show(parentFragmentManager, "LocalLLMConfigDialog")
+    }
+
+    private fun showCustomProviderConfigDialog(providerName: String) {
+        val dialog = CustomProviderConfigDialog {
+            val modelId = CustomProviderConfig.getModelId()
+            if (modelId.isBlank()) {
+                showSnackbar("⚠️ Custom provider model is required")
+                return@CustomProviderConfigDialog
+            }
+
+            handleProviderChange("custom", providerName, modelId)
+        }
+        dialog.show(parentFragmentManager, "CustomProviderConfigDialog")
     }
     
     private fun updateProviderDropdownSelection() {
@@ -126,7 +148,8 @@ class AIPreferencesFragment(
             "claude" to "Anthropic Claude",
             "deepseek" to "DeepSeek",
             "grok" to "xAI Grok",
-            "localllm" to "Local LLM"
+            "localllm" to "Local LLM",
+            "custom" to "Custom Provider"
         )
         
         val currentProviderId = agents.getProvider()
@@ -147,6 +170,7 @@ class AIPreferencesFragment(
             "deepseek" -> "DeepSeek"
             "grok" -> "xAI Grok"
             "localllm" -> "Local LLM"
+            "custom" -> "Custom Provider"
             else -> currentProvider.uppercase()
         }
         
@@ -176,10 +200,14 @@ class AIPreferencesFragment(
         modelDropdown.setAdapter(adapter)
         
         val currentModel = agents.getAgent()
-        if (currentModel in models) {
+        if (currentProvider == "custom" && currentModel.isNotBlank()) {
+            modelDropdown.setText(currentModel, false)
+        } else if (currentModel in models) {
             modelDropdown.setText(currentModel, false)
         } else if (models.isNotEmpty()) {
             modelDropdown.setText(models[0], false)
+        } else {
+            modelDropdown.setText("", false)
         }
     }
 
@@ -191,6 +219,17 @@ class AIPreferencesFragment(
                 "Auto-switch enabled"
             } else {
                 "Auto-switch disabled"
+            }
+            showSnackbar(message)
+        }
+
+        toolExecutionToggle.isChecked = permissionManager.isToolExecutionEnabled()
+        toolExecutionToggle.setOnCheckedChangeListener { _, isChecked ->
+            permissionManager.setToolExecutionEnabled(isChecked)
+            val message = if (isChecked) {
+                "AI tool execution enabled"
+            } else {
+                "AI tool execution disabled"
             }
             showSnackbar(message)
         }
@@ -274,19 +313,25 @@ class AIPreferencesFragment(
         codeCompletionToggle.isChecked = savedState
     }
 
-    private fun handleProviderChange(providerId: String, providerName: String) {
+    private fun handleProviderChange(
+        providerId: String,
+        providerName: String,
+        preferredModel: String? = null
+    ) {
         android.util.Log.d("AIPreferences", "Switching to provider: $providerId")
         
         val availableModels = agents.getModelsForProvider(providerId)
         android.util.Log.d("AIPreferences", "Available models for $providerId: ${availableModels.joinToString()}")
-        
-        if (availableModels.isNotEmpty()) {
-            val defaultModel = availableModels[0]
-            agents.setAgent(defaultModel)
-            android.util.Log.d("AIPreferences", "Set default model: $defaultModel")
-        }
-        
+
+        val previousProvider = agents.getProvider()
+        val previousModel = agents.getAgent()
+        val targetModel = preferredModel?.takeIf { it.isNotBlank() } ?: availableModels.firstOrNull()
+
         agents.setProvider(providerId)
+        targetModel?.let {
+            agents.setAgent(it)
+            android.util.Log.d("AIPreferences", "Set target model: $it")
+        }
         
         updateModelDropdown()
         
@@ -304,6 +349,13 @@ class AIPreferencesFragment(
             
             showSnackbar("Switched to $providerName")
         } else {
+            agents.setProvider(previousProvider)
+            if (previousModel.isNotBlank()) {
+                agents.setAgent(previousModel)
+            }
+            updateProviderDropdownSelection()
+            updateModelDropdown()
+            updateCurrentStatus()
             showSnackbar("⚠️ No valid API key for $providerName")
         }
     }

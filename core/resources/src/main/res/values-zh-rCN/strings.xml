@@ -28,7 +28,7 @@
   <!-- Update dialog content -->
   <string name="updater_new_version_available">新版本 %s 可用！</string>
   <string name="updater_current_architecture">设备架构：%s</string>
-  <string name="updater_target_version_code">目标版本代码：%s</string>
+  <string name="updater_target_version_code">目标版本代码：%d</string>
   <string name="updater_available_variants">可用变体：%s</string>
 
   <!-- Progress and status messages -->
@@ -37,7 +37,7 @@
   <string name="updater_enable_install_permission">请启用“安装未知应用程序”并重试</string>
 
   <!-- Log messages -->
-  <string name="updater_http_error">HTTP 错误：%s</string>
+  <string name="updater_http_error">HTTP 错误：%d</string>
   <string name="updater_fetch_error">获取更新信息时出错</string>
   <string name="updater_parse_error">解析更新信息时出错</string>
   <string name="updater_version_check_log">当前版本：%d，可用版本：%d，架构：%s</string>

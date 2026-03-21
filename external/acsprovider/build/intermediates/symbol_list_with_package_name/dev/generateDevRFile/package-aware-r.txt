@@ -4120,6 +4120,7 @@ drawable ic_mtrl_chip_checked_circle
 drawable ic_mtrl_chip_close_circle
 drawable ic_new_file
 drawable ic_new_folder
+drawable ic_notification
 drawable ic_ok
 drawable ic_open_external
 drawable ic_open_project
@@ -5277,6 +5278,7 @@ string classtype_activity
 string classtype_class
 string classtype_enum
 string clear_text_end_icon_content_description
+string closing_project
 string configure
 string copied
 string copy
@@ -5446,6 +5448,8 @@ string idepref_java_useGoogleStyle_summary
 string idepref_java_useGoogleStyle_title
 string idepref_jdkVersion_summary
 string idepref_jdkVersion_title
+string idepref_kotlin_indexing_notif_summary
+string idepref_kotlin_indexing_notif_title
 string idepref_launchAppAfterInstall_summary
 string idepref_launchAppAfterInstall_title
 string idepref_maxLineWidth_summary
@@ -5485,6 +5489,7 @@ string idepref_xml_trimFinalNewLine_title
 string idepref_xml_trimTrailingWs_summary
 string idepref_xml_trimTrailingWs_title
 string include_test_str
+string installing_lsp
 string invalid_name
 string invalid_project_name_message
 string item_view_role_description
@@ -5511,10 +5516,13 @@ string lsp_error_message
 string lsp_extracting_files
 string lsp_extracting_progress
 string lsp_initializing_download
+string lsp_install_str
 string lsp_installation_complete_description
 string lsp_installation_complete_title
 string lsp_installation_failed_description
 string lsp_installation_failed_title
+string lsp_installed_summary
+string lsp_installed_title
 string lsp_ok_button
 string lsp_options
 string lsp_options_c_cpp_summary
@@ -5544,6 +5552,7 @@ string lsp_server_uninstall_message
 string lsp_server_uninstall_success
 string lsp_server_uninstall_title
 string lsp_server_uninstalling
+string lsp_setup_str
 string lsp_unknown_error
 string lsp_update_available_description
 string lsp_update_available_title
@@ -5873,6 +5882,8 @@ string preparing_first
 string previous
 string project_app_name
 string project_configuration
+string project_contians_clang_title
+string project_contians_kotlin_title
 string project_created_successfully
 string project_creation_failed
 string project_delete_failed

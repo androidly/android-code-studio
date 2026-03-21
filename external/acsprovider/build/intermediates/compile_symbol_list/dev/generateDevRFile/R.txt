@@ -4119,6 +4119,7 @@ int drawable ic_mtrl_chip_checked_circle 0x0
 int drawable ic_mtrl_chip_close_circle 0x0
 int drawable ic_new_file 0x0
 int drawable ic_new_folder 0x0
+int drawable ic_notification 0x0
 int drawable ic_ok 0x0
 int drawable ic_open_external 0x0
 int drawable ic_open_project 0x0
@@ -5276,6 +5277,7 @@ int string classtype_activity 0x0
 int string classtype_class 0x0
 int string classtype_enum 0x0
 int string clear_text_end_icon_content_description 0x0
+int string closing_project 0x0
 int string configure 0x0
 int string copied 0x0
 int string copy 0x0
@@ -5445,6 +5447,8 @@ int string idepref_java_useGoogleStyle_summary 0x0
 int string idepref_java_useGoogleStyle_title 0x0
 int string idepref_jdkVersion_summary 0x0
 int string idepref_jdkVersion_title 0x0
+int string idepref_kotlin_indexing_notif_summary 0x0
+int string idepref_kotlin_indexing_notif_title 0x0
 int string idepref_launchAppAfterInstall_summary 0x0
 int string idepref_launchAppAfterInstall_title 0x0
 int string idepref_maxLineWidth_summary 0x0
@@ -5484,6 +5488,7 @@ int string idepref_xml_trimFinalNewLine_title 0x0
 int string idepref_xml_trimTrailingWs_summary 0x0
 int string idepref_xml_trimTrailingWs_title 0x0
 int string include_test_str 0x0
+int string installing_lsp 0x0
 int string invalid_name 0x0
 int string invalid_project_name_message 0x0
 int string item_view_role_description 0x0
@@ -5510,10 +5515,13 @@ int string lsp_error_message 0x0
 int string lsp_extracting_files 0x0
 int string lsp_extracting_progress 0x0
 int string lsp_initializing_download 0x0
+int string lsp_install_str 0x0
 int string lsp_installation_complete_description 0x0
 int string lsp_installation_complete_title 0x0
 int string lsp_installation_failed_description 0x0
 int string lsp_installation_failed_title 0x0
+int string lsp_installed_summary 0x0
+int string lsp_installed_title 0x0
 int string lsp_ok_button 0x0
 int string lsp_options 0x0
 int string lsp_options_c_cpp_summary 0x0
@@ -5543,6 +5551,7 @@ int string lsp_server_uninstall_message 0x0
 int string lsp_server_uninstall_success 0x0
 int string lsp_server_uninstall_title 0x0
 int string lsp_server_uninstalling 0x0
+int string lsp_setup_str 0x0
 int string lsp_unknown_error 0x0
 int string lsp_update_available_description 0x0
 int string lsp_update_available_title 0x0
@@ -5872,6 +5881,8 @@ int string preparing_first 0x0
 int string previous 0x0
 int string project_app_name 0x0
 int string project_configuration 0x0
+int string project_contians_clang_title 0x0
+int string project_contians_kotlin_title 0x0
 int string project_created_successfully 0x0
 int string project_creation_failed 0x0
 int string project_delete_failed 0x0

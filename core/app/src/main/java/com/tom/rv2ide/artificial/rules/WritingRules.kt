@@ -120,6 +120,22 @@ object WritingRules {
         **Reasoning:** This fixes the issue...  ← THIS IS FORBIDDEN!
         
         REMEMBER: The code ends at the last closing tag or brace. STOP THERE!
+
+        [ TOOL CALLS ]
+        If ADDITIONAL CONTEXT includes an "AI TOOLING" section, you may request tools using:
+        TOOL_CALL: tool_name
+        ARG_NAME: value
+        or a multiline block:
+        CONTENT:
+        <multiline content here>
+
+        Tool call rules:
+        - Return ONLY TOOL_CALL blocks when a tool is needed
+        - Do NOT mix TOOL_CALL with FILE_TO_MODIFY in the same response
+        - Prefer searching files and reading focused line ranges before editing
+        - Prefer replacing focused file ranges instead of rewriting entire files when possible
+        - After tool results are returned, either request another tool or produce FILE_TO_MODIFY / plain text
+        - Do NOT add explanations around TOOL_CALL blocks
         
         [ INTELLIGENT FILE PLACEMENT ]
         When user wants to create/modify:

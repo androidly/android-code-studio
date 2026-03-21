@@ -34,6 +34,7 @@ class AIPermissionManager(private val context: Context) {
         private const val KEY_ALLOWED_DIRECTORIES = "allowed_directories"
         private const val KEY_REQUIRE_CONFIRMATION = "require_confirmation"
         private const val KEY_AUTO_BACKUP = "auto_backup"
+        private const val KEY_TOOL_EXECUTION_ENABLED = "tool_execution_enabled"
     }
 
     /**
@@ -92,6 +93,14 @@ class AIPermissionManager(private val context: Context) {
     // Set auto backup
     fun setAutoBackup(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_BACKUP, enabled).apply()
+    }
+
+    fun isToolExecutionEnabled(): Boolean {
+        return prefs.getBoolean(KEY_TOOL_EXECUTION_ENABLED, true)
+    }
+
+    fun setToolExecutionEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_TOOL_EXECUTION_ENABLED, enabled).apply()
     }
 
     /**
