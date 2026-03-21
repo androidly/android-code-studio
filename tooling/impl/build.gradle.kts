@@ -16,6 +16,7 @@
  */
 
 
+import org.gradle.api.file.DuplicatesStrategy
 import com.tom.rv2ide.build.config.BuildConfig
 
 @Suppress("JavaPluginLanguageLevel")
@@ -46,6 +47,8 @@ tasks.register("copyJar") {
       from(libsDir)
       into(libsDir)
       include("*-all.jar")
+      exclude("tooling-api-all.jar")
+      duplicatesStrategy = DuplicatesStrategy.EXCLUDE
       rename { "tooling-api-all.jar" }
     }
   }

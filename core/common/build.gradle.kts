@@ -25,6 +25,10 @@ plugins {
 
 android {
     namespace = "${BuildConfig.packageName}.common"
+
+    buildFeatures {
+        dataBinding = true
+    }
 }
 
 dependencies {

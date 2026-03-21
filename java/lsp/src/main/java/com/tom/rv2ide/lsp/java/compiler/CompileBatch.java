@@ -22,7 +22,6 @@ import static com.tom.rv2ide.javac.config.JavacConfigProvider.disableModules;
 import static com.tom.rv2ide.javac.config.JavacConfigProvider.enableModules;
 import static com.tom.rv2ide.javac.config.JavacConfigProvider.setLatestSourceVersion;
 import static com.tom.rv2ide.javac.config.JavacConfigProvider.setLatestSupportedSourceVersion;
-import static com.tom.rv2ide.utils.Environment.JAVA_HOME;
 
 import androidx.annotation.NonNull;
 import androidx.core.util.Pair;
@@ -36,6 +35,7 @@ import com.tom.rv2ide.projects.ModuleProject;
 import com.tom.rv2ide.projects.util.StringSearch;
 import com.tom.rv2ide.tooling.api.ProjectType;
 import com.tom.rv2ide.utils.ClassTrie;
+import com.tom.rv2ide.utils.Environment;
 import com.tom.rv2ide.utils.SourceClassTrie;
 import com.tom.rv2ide.utils.StopWatch;
 import java.io.File;
@@ -145,7 +145,7 @@ public class CompileBatch implements AutoCloseable {
     List<String> options = new ArrayList<>();
 
     // This won't be used if the current module is Android module project
-    System.setProperty(PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());
+    System.setProperty(PROP_ANDROIDIDE_JAVA_HOME, Environment.JAVA_HOME.getAbsolutePath());
     if (this.parent.module != null && this.parent.module.getType() == ProjectType.Android) {
       setLatestSourceVersion(SourceVersion.RELEASE_8);
       setLatestSupportedSourceVersion(SourceVersion.RELEASE_11);

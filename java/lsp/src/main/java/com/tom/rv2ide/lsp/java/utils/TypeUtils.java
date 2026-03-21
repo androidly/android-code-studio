@@ -16,9 +16,6 @@
  */
 package com.tom.rv2ide.lsp.java.utils;
 
-import static com.tom.rv2ide.projects.util.StringSearch.containsClass;
-import static com.tom.rv2ide.projects.util.StringSearch.containsInterface;
-
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.expr.SimpleName;
@@ -36,6 +33,7 @@ import com.github.javaparser.printer.DefaultPrettyPrinter;
 import com.github.javaparser.printer.configuration.DefaultPrinterConfiguration;
 import com.github.javaparser.printer.configuration.PrinterConfiguration;
 import com.tom.rv2ide.lsp.java.visitors.PrettyPrintingVisitor;
+import com.tom.rv2ide.projects.util.StringSearch;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -278,9 +276,9 @@ public class TypeUtils {
   public static boolean containsType(Path file, TypeElement el) {
     switch (el.getKind()) {
       case INTERFACE:
-        return containsInterface(file, el.getSimpleName().toString());
+        return StringSearch.containsInterface(file, el.getSimpleName().toString());
       case CLASS:
-        return containsClass(file, el.getSimpleName().toString());
+        return StringSearch.containsClass(file, el.getSimpleName().toString());
       default:
         throw new RuntimeException("Don't know what to do with " + el.getKind());
     }

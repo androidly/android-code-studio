@@ -432,6 +432,7 @@ class AIAgentManager(private val context: Context) {
             callback.onProcessing("Executing ${toolCalls.size} tool request(s)...")
 
             toolCalls.forEach { toolCall ->
+                callback.onToolCallStarted(toolCall)
                 callback.onProcessing(formatToolStartMessage(toolCall))
                 val toolResult = toolExecutor.execute(toolCall)
                 toolResults += toolResult
@@ -447,6 +448,7 @@ class AIAgentManager(private val context: Context) {
                         previousContent = fileChange.previousContent
                     )
                 }
+                callback.onToolCallCompleted(toolResult)
                 callback.onProcessing(formatToolEndMessage(toolResult))
             }
         }
@@ -599,6 +601,7 @@ class AIAgentManager(private val context: Context) {
             ModificationResult(
                 filePath = modification.filePath,
                 content = modification.content,
+                previousContent = modification.previousContent,
                 success = success,
                 message = when (writeResult) {
                     is FileWriteResult.Success -> "Modified successfully"
@@ -757,11 +760,14 @@ class AIAgentManager(private val context: Context) {
         fun onTextResponse(response: String, summary: ModificationSummary)
         fun onError(message: String)
         fun onRetry(attemptNumber: Int, message: String)
+        fun onToolCallStarted(toolCall: AIToolCall) {}
+        fun onToolCallCompleted(result: AIToolExecutionResult) {}
     }
 
     data class ModificationResult(
         val filePath: String,
         val content: String,
+        val previousContent: String?,
         val success: Boolean,
         val message: String,
         val isNewFile: Boolean = false

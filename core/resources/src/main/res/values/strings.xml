@@ -33,14 +33,14 @@
 
   <!-- Progress and status messages -->
   <string name="updater_preparing_download">Preparing download…</string>
-  <string name="updater_progress_format">%d MB / %d MB</string>
+  <string name="updater_progress_format">%1$d MB / %2$d MB</string>
   <string name="updater_enable_install_permission">Please enable \'Install unknown apps\' and try again</string>
 
   <!-- Log messages -->
   <string name="updater_http_error">HTTP error: %d</string>
   <string name="updater_fetch_error">Error fetching update info</string>
   <string name="updater_parse_error">Error parsing update info</string>
-  <string name="updater_version_check_log">Current version: %d, Available version: %d for arch: %s</string>
+  <string name="updater_version_check_log">Current version: %1$d, Available version: %2$d for arch: %3$s</string>
   <string name="updater_no_compatible_variant">No compatible variant found for architecture: %s</string>
   <string name="updater_package_not_found">Package not found</string>
   <string name="updater_supported_abis">Supported ABIs: %s</string>
@@ -124,6 +124,7 @@
   <string name="official_tg_channel">Official Telegram Channel</string>
   <string name="msg_empty_view">No data</string>
   <string name="title_terminal">Terminal</string>
+  <string name="ai_assistant">AI Assistant</string>
   <string name="reset">Reset</string>
   <string name="app_logs">App Logs</string>
   <string name="ide_logs">IDE Logs</string>
@@ -572,7 +573,7 @@
   <string name="lsp_server_uninstall_success">%s server uninstalled successfully!</string>
   <string name="lsp_server_uninstall_failed">Failed to uninstall %s server</string>
   <string name="lsp_server_not_found">%s server directory not found</string>
-  <string name="lsp_server_uninstall_error">Failed to uninstall %s:\n%s</string>
+  <string name="lsp_server_uninstall_error">Failed to uninstall %1$s:\n%2$s</string>
 
   <!-- LSP Server Download -->
   <string name="lsp_server_preparing_download">Preparing download…</string>
@@ -583,8 +584,8 @@
   <string name="lsp_server_downloading_status">Downloading…</string>
   <string name="lsp_server_progress_percentage">%d%%</string>
   <string name="lsp_server_extracting">Extracting files…</string>
-  <string name="lsp_server_install_success">%s server installed successfully!\n%d files extracted.</string>
-  <string name="lsp_server_download_failed">Failed to download %s:\n%s</string>
+  <string name="lsp_server_install_success">%1$s server installed successfully!\n%2$d files extracted.</string>
+  <string name="lsp_server_download_failed">Failed to download %1$s:\n%2$s</string>
 
   <!-- LSP Server Dialog Titles -->
   <string name="lsp_server_error_title">Download Failed</string>

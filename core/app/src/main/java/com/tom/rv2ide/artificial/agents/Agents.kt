@@ -165,7 +165,10 @@ class Agents(ctx: Context) {
   }
   
   fun getProviderForModel(modelName: String): String? {
+    val currentProvider = getProvider()
     return when {
+      currentProvider == "custom" &&
+        (modelName in custom_provider_models || modelName == CustomProviderConfig.getModelId()) -> "custom"
       modelName in openai_models -> "openai"
       modelName in gemini_models -> "gemini"
       modelName in claude_models -> "claude"
@@ -178,7 +181,9 @@ class Agents(ctx: Context) {
   }
   
   fun setAgent(name: String) {
+      val currentProvider = sp.getString(PROVIDER_KEY, "gemini") ?: "gemini"
       val provider = when {
+          currentProvider == "custom" && name.isNotBlank() -> "custom"
           name in openai_models -> "openai"
           name in gemini_models -> "gemini"
           name in claude_models -> "claude"
@@ -186,28 +191,36 @@ class Agents(ctx: Context) {
           name in grok_models -> "grok"
           name in localllm_models -> "localllm"
           name in custom_provider_models -> "custom"
-          (sp.getString(PROVIDER_KEY, "gemini") ?: "gemini") == "custom" && name.isNotBlank() -> "custom"
-          else -> sp.getString(PROVIDER_KEY, "gemini") ?: "gemini"
+          else -> currentProvider
       }
       
+      if (provider == "custom" && name.isNotBlank()) {
+          CustomProviderConfig.saveModelForActiveProfile(name)
+      }
+
       sp.edit().putString(PROVIDER_KEY, provider).apply()
       sp.edit().putString(AGENT_KEY, name).apply()
   }
   
   fun getAgent(): String {
-    val savedModel = sp.getString(AGENT_KEY, null)
-    if (savedModel != null) return savedModel
-    
     return when (getProvider()) {
+      "custom" -> CustomProviderConfig.getModelId()
+        .ifBlank { custom_provider_models.firstOrNull() ?: "" }
+      else -> {
+        val savedModel = sp.getString(AGENT_KEY, null)
+        if (savedModel != null) {
+          return savedModel
+        }
+        when (getProvider()) {
       "openai" -> "gpt-4o"
       "gemini" -> "gemini-2.5-pro"
       "claude" -> "claude-sonnet-4-20250514"
       "deepseek" -> "deepseek-chat"
       "grok" -> "grok-beta"
       "localllm" -> "local-model"
-      "custom" -> CustomProviderConfig.getModelId()
-        .ifBlank { custom_provider_models.firstOrNull() ?: "" }
       else -> "gemini-2.5-pro"
+        }
+      }
     }
   }
   

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="6dp"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="0dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/toolTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/toolSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textIsSelectable="true" />
+
+        <TextView
+            android:id="@+id/toolCommand"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="?attr/colorSurface"
+            android:fontFamily="monospace"
+            android:padding="10dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textIsSelectable="true" />
+
+        <TextView
+            android:id="@+id/toolWorkdir"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="monospace"
+            android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+            android:textIsSelectable="true" />
+
+        <TextView
+            android:id="@+id/toolOutput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="?attr/colorSurface"
+            android:fontFamily="monospace"
+            android:maxLines="14"
+            android:padding="10dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textIsSelectable="true" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

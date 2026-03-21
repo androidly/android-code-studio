@@ -26,6 +26,7 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 import com.tom.rv2ide.fragments.DiagnosticsListFragment;
 import com.tom.rv2ide.fragments.SearchResultFragment;
 import com.tom.rv2ide.fragments.TerminalFragment;
+import com.tom.rv2ide.fragments.assistant.AIAssistantConsoleFragment;
 import com.tom.rv2ide.fragments.output.AppLogFragment;
 import com.tom.rv2ide.fragments.output.BuildOutputFragment;
 import com.tom.rv2ide.fragments.output.IDELogFragment;
@@ -55,6 +56,9 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
 
     this.fragments.add(
         new Tab(fragmentActivity.getString(R.string.title_terminal), TerminalFragment.class, ++index));
+
+    this.fragments.add(
+        new Tab(fragmentActivity.getString(R.string.ai_assistant), AIAssistantConsoleFragment.class, ++index));
 
     this.fragments.add(
         new Tab(fragmentActivity.getString(R.string.ide_logs), IDELogFragment.class, ++index));

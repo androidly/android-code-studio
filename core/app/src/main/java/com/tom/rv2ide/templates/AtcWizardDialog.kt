@@ -14,7 +14,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.provider.DocumentsContractCompat
-import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -57,8 +56,7 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
     val dialog = BottomSheetDialog(requireContext(), theme)
     val ctx = requireContext()
 
-    _binding =
-        DataBindingUtil.inflate(LayoutInflater.from(ctx), R.layout.dialog_atc_wizard, null, false)
+    _binding = DialogAtcWizardBinding.inflate(LayoutInflater.from(ctx))
 
     setupSwitches()
     setupInputs(ctx)

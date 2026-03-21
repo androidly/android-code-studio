@@ -21,8 +21,10 @@ import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.tom.rv2ide.databinding.LayoutOnboardingItemBinding
+import com.tom.rv2ide.R
 import com.tom.rv2ide.models.OnboardingItem
 
 /**
@@ -37,49 +39,56 @@ open class DefaultOnboardingItemAdapter<T : OnboardingItem>(
 ) : RecyclerView.Adapter<DefaultOnboardingItemAdapter.ViewHolder>() {
 
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-    return ViewHolder(
-        LayoutOnboardingItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-    )
+    val itemView = LayoutInflater.from(parent.context).inflate(R.layout.layout_onboarding_item, parent, false)
+    return ViewHolder(itemView)
   }
 
   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-    doBindViewHolder(holder, position, getItem(position), holder.binding)
+    doBindViewHolder(holder, position, getItem(position))
   }
 
   protected open fun doBindViewHolder(
       holder: ViewHolder,
       position: Int,
       item: T,
-      binding: LayoutOnboardingItemBinding,
   ) {
-    binding.content.title.text = item.title
+    holder.title.text = item.title
 
     if (item.description.isNotBlank()) {
-      binding.content.description.text = item.description
+      holder.description.text = item.description
+      holder.description.visibility = View.VISIBLE
     } else {
-      binding.content.description.visibility = View.INVISIBLE
+      holder.description.visibility = View.INVISIBLE
     }
 
     if (item.icon != 0) {
-      binding.content.icon.setImageResource(item.icon)
+      holder.icon.setImageResource(item.icon)
+      holder.icon.visibility = View.VISIBLE
       if (item.iconTint != 0) {
-        binding.content.icon.supportImageTintList = ColorStateList.valueOf(item.iconTint)
+        holder.icon.imageTintList = ColorStateList.valueOf(item.iconTint)
+      } else {
+        holder.icon.imageTintList = null
       }
     } else {
-      binding.content.icon.visibility = View.INVISIBLE
+      holder.icon.visibility = View.INVISIBLE
+      holder.icon.imageTintList = null
     }
 
-    binding.root.isClickable = item.isClickable
-    binding.root.isFocusable = item.isClickable
+    holder.itemView.isClickable = item.isClickable
+    holder.itemView.isFocusable = item.isClickable
 
     if (item.isClickable && onItemClickListener != null) {
-      binding.root.setOnClickListener { onItemClickListener.onClick(item, position, binding) }
+      holder.itemView.setOnClickListener { onItemClickListener.onClick(item, position, holder) }
+    } else {
+      holder.itemView.setOnClickListener(null)
     }
 
     if (item.isLongClickable && onItemLongClickListener != null) {
-      binding.root.setOnLongClickListener {
-        onItemLongClickListener.onLongClick(item, position, binding)
+      holder.itemView.setOnLongClickListener {
+        onItemLongClickListener.onLongClick(item, position, holder)
       }
+    } else {
+      holder.itemView.setOnLongClickListener(null)
     }
   }
 
@@ -91,16 +100,19 @@ open class DefaultOnboardingItemAdapter<T : OnboardingItem>(
     return items[index]
   }
 
-  class ViewHolder(val binding: LayoutOnboardingItemBinding) :
-      RecyclerView.ViewHolder(binding.root)
+  class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    val title: TextView = itemView.findViewById(R.id.title)
+    val description: TextView = itemView.findViewById(R.id.description)
+    val icon: ImageView = itemView.findViewById(R.id.icon)
+  }
 
   fun interface OnItemClickListener<T : OnboardingItem> {
 
-    fun onClick(item: T, position: Int, binding: LayoutOnboardingItemBinding)
+    fun onClick(item: T, position: Int, holder: ViewHolder)
   }
 
   fun interface OnItemLongClickListener<T : OnboardingItem> {
 
-    fun onLongClick(item: T, position: Int, binding: LayoutOnboardingItemBinding): Boolean
+    fun onLongClick(item: T, position: Int, holder: ViewHolder): Boolean
   }
 }

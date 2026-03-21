@@ -7,11 +7,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
+import android.widget.LinearLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.textview.MaterialTextView
 import com.tom.rv2ide.R
 import com.tom.rv2ide.artificial.agents.AIAgentManager
@@ -34,17 +36,23 @@ class AIPreferencesFragment(
 
     private lateinit var providerDropdown: AutoCompleteTextView
     private lateinit var modelDropdown: AutoCompleteTextView
+    private lateinit var customProfileDropdown: AutoCompleteTextView
     private lateinit var autoSwitchToggle: MaterialSwitch
     private lateinit var toolExecutionToggle: MaterialSwitch
     private lateinit var codeCompletionToggle: MaterialSwitch
     private lateinit var currentProviderText: MaterialTextView
     private lateinit var currentModelText: MaterialTextView
+    private lateinit var customSection: LinearLayout
+    private lateinit var addCustomProfileButton: MaterialButton
+    private lateinit var editCustomProfileButton: MaterialButton
+    private lateinit var deleteCustomProfileButton: MaterialButton
     
     private val providerSwitchDialog by lazy { ProviderSwitchDialog(requireContext()) }
     private val permissionManager by lazy { AIPermissionManager(requireContext()) }
     
     private var completionStateMonitorJob: Job? = null
     private var isCompletionEnabled = true
+    private var customProfileIds: List<String> = emptyList()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -60,16 +68,21 @@ class AIPreferencesFragment(
         initializeViews(view)
         setupProviderDropdown()
         setupModelDropdown()
+        setupCustomProfileSection()
         setupToggles()
         updateCurrentStatus()
+        updateCustomSectionVisibility()
         startCompletionStateMonitoring()
     }
 
     override fun onResume() {
         super.onResume()
+        startCompletionStateMonitoring()
         updateCurrentStatus()
         updateProviderDropdownSelection()
+        updateCustomProfileDropdown()
         updateModelDropdown()
+        updateCustomSectionVisibility()
         syncCodeCompletionToggle()
     }
     
@@ -81,26 +94,21 @@ class AIPreferencesFragment(
     private fun initializeViews(view: View) {
         providerDropdown = view.findViewById(R.id.providerDropdown)
         modelDropdown = view.findViewById(R.id.modelDropdown)
+        customProfileDropdown = view.findViewById(R.id.customProfileDropdown)
         autoSwitchToggle = view.findViewById(R.id.autoSwitchToggle)
         toolExecutionToggle = view.findViewById(R.id.toolExecutionToggle)
         codeCompletionToggle = view.findViewById(R.id.codeCompletionToggle)
         currentProviderText = view.findViewById(R.id.currentProviderText)
         currentModelText = view.findViewById(R.id.currentModelText)
+        customSection = view.findViewById(R.id.customSection)
+        addCustomProfileButton = view.findViewById(R.id.addCustomProfileButton)
+        editCustomProfileButton = view.findViewById(R.id.editCustomProfileButton)
+        deleteCustomProfileButton = view.findViewById(R.id.deleteCustomProfileButton)
     }
 
     private fun setupProviderDropdown() {
-        val providerMap = mapOf(
-            "gemini" to "Google Gemini",
-            "openai" to "OpenAI",
-            "claude" to "Anthropic Claude",
-            "deepseek" to "DeepSeek",
-            "grok" to "xAI Grok",
-            "localllm" to "Local LLM",
-            "custom" to "Custom Provider"
-        )
-        
         val allProviderIds = listOf("gemini", "openai", "claude", "deepseek", "grok", "localllm", "custom")
-        val providerNames = allProviderIds.map { providerMap[it] ?: it }
+        val providerNames = allProviderIds.map(::providerDisplayName)
         
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, providerNames)
         providerDropdown.setAdapter(adapter)
@@ -112,9 +120,21 @@ class AIPreferencesFragment(
             val selectedProviderName = providerNames[position]
             
             if (selectedProviderId == "localllm") {
+                updateProviderDropdownSelection()
                 showLocalLLMConfigDialog(selectedProviderName)
             } else if (selectedProviderId == "custom") {
-                showCustomProviderConfigDialog(selectedProviderName)
+                val activeProfile = CustomProviderConfig.getActiveProfile()
+                when {
+                    activeProfile == null -> {
+                        updateProviderDropdownSelection()
+                        showCustomProviderConfigDialog(createNew = true)
+                    }
+                    !activeProfile.isValid -> {
+                        updateProviderDropdownSelection()
+                        showCustomProviderConfigDialog(profileId = activeProfile.id)
+                    }
+                    else -> handleProviderChange("custom", selectedProviderName, activeProfile.modelId)
+                }
             } else {
                 handleProviderChange(selectedProviderId, selectedProviderName)
             }
@@ -128,32 +148,25 @@ class AIPreferencesFragment(
         dialog.show(parentFragmentManager, "LocalLLMConfigDialog")
     }
 
-    private fun showCustomProviderConfigDialog(providerName: String) {
-        val dialog = CustomProviderConfigDialog {
-            val modelId = CustomProviderConfig.getModelId()
-            if (modelId.isBlank()) {
-                showSnackbar("⚠️ Custom provider model is required")
-                return@CustomProviderConfigDialog
-            }
-
-            handleProviderChange("custom", providerName, modelId)
+    private fun showCustomProviderConfigDialog(
+        profileId: String? = null,
+        createNew: Boolean = false
+    ) {
+        val dialog = CustomProviderConfigDialog(
+            profileId = profileId,
+            createNew = createNew
+        ) { savedProfile ->
+            updateCustomProfileDropdown()
+            updateCustomSectionVisibility()
+            updateModelDropdown()
+            handleProviderChange("custom", providerDisplayName("custom"), savedProfile.modelId)
         }
         dialog.show(parentFragmentManager, "CustomProviderConfigDialog")
     }
     
     private fun updateProviderDropdownSelection() {
-        val providerMap = mapOf(
-            "gemini" to "Google Gemini",
-            "openai" to "OpenAI",
-            "claude" to "Anthropic Claude",
-            "deepseek" to "DeepSeek",
-            "grok" to "xAI Grok",
-            "localllm" to "Local LLM",
-            "custom" to "Custom Provider"
-        )
-        
         val currentProviderId = agents.getProvider()
-        val currentProviderName = providerMap[currentProviderId] ?: currentProviderId
+        val currentProviderName = providerDisplayName(currentProviderId)
         providerDropdown.setText(currentProviderName, false)
     }
     
@@ -163,18 +176,15 @@ class AIPreferencesFragment(
         
         android.util.Log.d("AIPreferences", "Current provider: $currentProvider, model: $currentModel")
         
-        val providerDisplayName = when(currentProvider) {
-            "gemini" -> "Google Gemini"
-            "openai" -> "OpenAI"
-            "claude" -> "Anthropic Claude"
-            "deepseek" -> "DeepSeek"
-            "grok" -> "xAI Grok"
-            "localllm" -> "Local LLM"
-            "custom" -> "Custom Provider"
-            else -> currentProvider.uppercase()
+        val providerDisplay = if (currentProvider == "custom") {
+            val activeProfileName = CustomProviderConfig.getActiveProfile()?.name
+            listOfNotNull(providerDisplayName(currentProvider), activeProfileName?.takeIf { it.isNotBlank() })
+                .joinToString(" · ")
+        } else {
+            providerDisplayName(currentProvider)
         }
-        
-        currentProviderText.text = providerDisplayName
+
+        currentProviderText.text = providerDisplay
         currentModelText.text = currentModel
     }
 
@@ -208,6 +218,117 @@ class AIPreferencesFragment(
             modelDropdown.setText(models[0], false)
         } else {
             modelDropdown.setText("", false)
+        }
+    }
+
+    private fun setupCustomProfileSection() {
+        updateCustomProfileDropdown()
+
+        customProfileDropdown.setOnItemClickListener { _, _, position, _ ->
+            val selectedProfileId = customProfileIds.getOrNull(position) ?: return@setOnItemClickListener
+            CustomProviderConfig.setActiveProfile(selectedProfileId)
+            updateCustomProfileDropdown()
+            updateModelDropdown()
+            updateCurrentStatus()
+
+            if (agents.getProvider() == "custom") {
+                handleProviderChange("custom", providerDisplayName("custom"), CustomProviderConfig.getModelId())
+            } else {
+                showSnackbar("Active custom profile: ${customProfileDropdown.text}")
+            }
+        }
+
+        addCustomProfileButton.setOnClickListener {
+            showCustomProviderConfigDialog(createNew = true)
+        }
+
+        editCustomProfileButton.setOnClickListener {
+            val activeProfileId = CustomProviderConfig.getActiveProfileId()
+            if (activeProfileId.isBlank()) {
+                showSnackbar("Add a custom profile first")
+                return@setOnClickListener
+            }
+            showCustomProviderConfigDialog(profileId = activeProfileId)
+        }
+
+        deleteCustomProfileButton.setOnClickListener {
+            val activeProfile = CustomProviderConfig.getActiveProfile()
+            if (activeProfile == null) {
+                showSnackbar("No custom profile to delete")
+                return@setOnClickListener
+            }
+
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Delete Custom Profile")
+                .setMessage("Delete '${activeProfile.name}'?")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Delete") { _, _ ->
+                    val deleted = CustomProviderConfig.deleteProfile(activeProfile.id)
+                    if (!deleted) {
+                        showSnackbar("Failed to delete custom profile")
+                        return@setPositiveButton
+                    }
+
+                    updateCustomProfileDropdown()
+                    updateModelDropdown()
+                    updateCurrentStatus()
+                    updateCustomSectionVisibility()
+
+                    val newActiveProfile = CustomProviderConfig.getActiveProfile()
+                    when {
+                        agents.getProvider() == "custom" && newActiveProfile?.isValid == true -> {
+                            handleProviderChange("custom", providerDisplayName("custom"), newActiveProfile.modelId)
+                        }
+                        agents.getProvider() == "custom" -> {
+                            updateProviderDropdownSelection()
+                            showSnackbar("Custom profile deleted. Add or select another profile to keep using Custom Provider.")
+                        }
+                        else -> {
+                            showSnackbar("Deleted ${activeProfile.name}")
+                        }
+                    }
+                }
+                .show()
+        }
+    }
+
+    private fun updateCustomProfileDropdown() {
+        val profiles = CustomProviderConfig.getProfiles()
+        customProfileIds = profiles.map { it.id }
+        val profileNames = profiles.map { profile ->
+            if (profile.id == CustomProviderConfig.getActiveProfileId()) {
+                "${profile.name} (Active)"
+            } else {
+                profile.name
+            }
+        }
+
+        customProfileDropdown.setAdapter(
+            ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, profileNames)
+        )
+        val activeProfile = CustomProviderConfig.getActiveProfile()
+        customProfileDropdown.setText(activeProfile?.name.orEmpty(), false)
+
+        val hasProfiles = profiles.isNotEmpty()
+        customProfileDropdown.isEnabled = hasProfiles
+        editCustomProfileButton.isEnabled = hasProfiles
+        deleteCustomProfileButton.isEnabled = hasProfiles
+    }
+
+    private fun updateCustomSectionVisibility() {
+        customSection.visibility = View.VISIBLE
+    }
+
+    private fun providerDisplayName(providerId: String): String {
+        return when (providerId) {
+            "gemini" -> "Google Gemini"
+            "openai" -> "OpenAI"
+            "claude" -> "Anthropic Claude"
+            "deepseek" -> "DeepSeek"
+            "grok" -> "xAI Grok"
+            "localllm" -> "Local LLM"
+            "custom" -> "Custom Provider"
+            else -> providerId.uppercase()
         }
     }
 
@@ -334,8 +455,11 @@ class AIPreferencesFragment(
         }
         
         updateModelDropdown()
+        updateCustomProfileDropdown()
+        updateCustomSectionVisibility()
         
         if (aiAgent.setProvider(providerId)) {
+            updateProviderDropdownSelection()
             aiAgent.reinitializeWithSelectedModel()
             updateCurrentStatus()
             
@@ -355,6 +479,8 @@ class AIPreferencesFragment(
             }
             updateProviderDropdownSelection()
             updateModelDropdown()
+            updateCustomProfileDropdown()
+            updateCustomSectionVisibility()
             updateCurrentStatus()
             showSnackbar("⚠️ No valid API key for $providerName")
         }
@@ -364,6 +490,7 @@ class AIPreferencesFragment(
         android.util.Log.d("AIPreferences", "Switching to model: $modelName")
         agents.setAgent(modelName)
         aiAgent.reinitializeWithSelectedModel()
+        updateCustomProfileDropdown()
         updateCurrentStatus()
         
         lifecycleScope.launch {
