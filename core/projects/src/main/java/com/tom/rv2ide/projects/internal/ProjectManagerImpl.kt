@@ -39,6 +39,9 @@ import com.tom.rv2ide.projects.builder.BuildService
 import com.tom.rv2ide.tasks.executeAsync
 import com.tom.rv2ide.tooling.api.IAndroidProject
 import com.tom.rv2ide.tooling.api.IProject
+import com.tom.rv2ide.tooling.api.messages.AndroidInitializationParams
+import com.tom.rv2ide.tooling.api.messages.GradleDistributionParams
+import com.tom.rv2ide.tooling.api.messages.InitializeProjectParams
 import com.tom.rv2ide.tooling.api.messages.result.InitializeResult
 import com.tom.rv2ide.tooling.api.models.BuildVariantInfo
 import com.tom.rv2ide.utils.DocumentUtils
@@ -94,28 +97,29 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
   }
 
   override suspend fun setupProject(project: IProject) {
-    this._workspace =
+    val workspace =
         withStopWatch("Transform project proxy") {
           withContext(Dispatchers.IO) {
             WorkspaceModelBuilder.build(projectDir, CachingProject(project))
           }
         }
+            ?: throw IllegalStateException(
+                "Workspace initialization failed. The project structure could not be analyzed."
+            )
 
-    val rootProject = this.getWorkspace() ?: return
-
-    // build variants must be updated before the sources and classpaths are indexed
-    updateBuildVariants { buildVariants -> _workspace!!.setVariantSelections(buildVariants) }
+    // Keep the previous workspace alive until the replacement is fully indexed and usable.
+    updateBuildVariants(workspace) { buildVariants -> workspace.setVariantSelections(buildVariants) }
 
     log.info(
         "Found {} project sync issues: {}",
-        rootProject.getProjectSyncIssues().syncIssues.size,
-        rootProject.getProjectSyncIssues().syncIssues,
+        workspace.getProjectSyncIssues().syncIssues.size,
+        workspace.getProjectSyncIssues().syncIssues,
     )
 
     withStopWatch("Setup project") {
       val indexerScope = CoroutineScope(Dispatchers.Default)
       val modulesFlow = flow {
-        rootProject.getSubProjects().filterIsInstance<ModuleProject>().forEach { emit(it) }
+        workspace.getSubProjects().filterIsInstance<ModuleProject>().forEach { emit(it) }
       }
 
       val jobs =
@@ -131,6 +135,8 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
       // wait for the indexing to finish
       jobs.toList().awaitAll()
     }
+
+    this._workspace = workspace
   }
 
   override fun destroy() {
@@ -216,14 +222,52 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
     }
   }
 
-  private fun updateBuildVariants(onUpdated: (Map<String, BuildVariantInfo>) -> Unit = {}) {
-    val rootProject =
-        checkNotNull(this.getWorkspace()) {
+  fun hasUsableWorkspace(): Boolean {
+    return _workspace?.getSubProjects()?.isNotEmpty() == true
+  }
+
+  suspend fun refreshProjectModel(
+      buildService: BuildService,
+      gradleDistribution: GradleDistributionParams,
+      variantSelections: Map<String, String> =
+          getWorkspace()
+              ?.getAndroidVariantSelections()
+              ?.mapValues { (_, info) -> info.selectedVariant }
+              .orEmpty(),
+  ): InitializeResult? {
+    val params =
+        InitializeProjectParams(
+            directory = projectDir.absolutePath,
+            gradleDistribution = gradleDistribution,
+            androidParams =
+                if (variantSelections.isEmpty()) {
+                  AndroidInitializationParams.DEFAULT
+                } else {
+                  AndroidInitializationParams(variantSelections)
+                },
+        )
+
+    val result = buildService.initializeProject(params).get()
+    if (result == null || !result.isSuccessful) {
+      return result
+    }
+
+    cachedInitResult = result
+    setupProject()
+    notifyProjectUpdate()
+    projectInitialized = true
+    return result
+  }
+
+  private fun updateBuildVariants(
+      workspace: IWorkspace = checkNotNull(this.getWorkspace()) {
           "Cannot update build variants. Root project model is null."
-        }
+      },
+      onUpdated: (Map<String, BuildVariantInfo>) -> Unit = {},
+  ) {
 
     val buildVariants = mutableMapOf<String, BuildVariantInfo>()
-    rootProject.getSubProjects().forEach { subproject ->
+    workspace.getSubProjects().forEach { subproject ->
       if (subproject is AndroidModule) {
 
         val variantNames =

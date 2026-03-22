@@ -276,7 +276,7 @@ class Anthropic : AIAgent {
       
       val requestBody = JSONObject()
       requestBody.put("model", selectedModel)
-      requestBody.put("max_tokens", 4096)
+      requestBody.put("max_tokens", 16384)
       requestBody.put("system", writingRules.useThis())
       requestBody.put("messages", messages)
       

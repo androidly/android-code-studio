@@ -4,6 +4,10 @@ import android.content.Context
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import com.tom.rv2ide.app.IDEApplication
 import com.tom.rv2ide.artificial.file.FileWriteResult
+import com.tom.rv2ide.lookup.Lookup
+import com.tom.rv2ide.projects.builder.BuildService
+import com.tom.rv2ide.projects.internal.ProjectManagerImpl
+import com.tom.rv2ide.services.builder.gradleDistributionParams
 import com.tom.rv2ide.utils.Environment
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -52,6 +56,29 @@ class AIToolExecutor(
             "echo",
             "git",
             "rg",
+            "cp",
+            "mkdir",
+            "touch",
+            "realpath",
+            "readlink",
+            "stat",
+            "file",
+            "tree",
+            "du",
+            "df",
+            "ps",
+            "top",
+            "curl",
+            "wget",
+            "tar",
+            "unzip",
+            "zip",
+            "jar",
+            "basename",
+            "dirname",
+            "hostname",
+            "id",
+            "test",
             "java",
             "javac",
             "kotlinc",
@@ -79,6 +106,11 @@ class AIToolExecutor(
             "uniq",
             "wc",
             "nl"
+        )
+        private val GRADLE_TERMINAL_TOKENS = setOf(
+            "gradle",
+            "gradlew",
+            "gradlew.bat"
         )
         private val FORBIDDEN_COMMAND_PARTS = listOf(
             "&&",
@@ -111,10 +143,13 @@ class AIToolExecutor(
         )
     }
 
-    suspend fun execute(toolCall: AIToolCall): AIToolExecutionResult = withContext(Dispatchers.IO) {
+    suspend fun execute(
+        toolCall: AIToolCall,
+        onOutputLine: ((String) -> Unit)? = null
+    ): AIToolExecutionResult = withContext(Dispatchers.IO) {
         when (toolCall.name.trim().lowercase()) {
-            "build_project" -> executeBuildProject(toolCall)
-            "run_terminal_command" -> executeTerminalCommand(toolCall)
+            "build_project" -> executeBuildProject(toolCall, onOutputLine)
+            "run_terminal_command" -> executeTerminalCommand(toolCall, onOutputLine)
             "find_files" -> executeFindFiles(toolCall)
             "search_project" -> executeSearchProject(toolCall)
             "read_file_range" -> executeReadFileRange(toolCall)
@@ -493,7 +528,10 @@ class AIToolExecutor(
         )
     }
 
-    private fun executeBuildProject(toolCall: AIToolCall): AIToolExecutionResult {
+    private suspend fun executeBuildProject(
+        toolCall: AIToolCall,
+        onOutputLine: ((String) -> Unit)?
+    ): AIToolExecutionResult {
         val projectRoot = projectRootProvider()
             ?: return AIToolExecutionResult(
                 toolName = toolCall.name,
@@ -553,30 +591,78 @@ class AIToolExecutor(
             }
         }
 
-        val execution = runCommand(command, projectRoot, BUILD_TIMEOUT_SECONDS)
+        val execution = runCommand(command, projectRoot, BUILD_TIMEOUT_SECONDS, onOutputLine)
+        val refreshResult =
+            if (execution.exitCode == 0) {
+                refreshIdeProjectModel(onOutputLine)
+            } else {
+                null
+            }
         return AIToolExecutionResult(
             toolName = toolCall.name,
             success = execution.exitCode == 0,
-            summary = if (execution.exitCode == 0) {
-                "Gradle build completed successfully"
-            } else {
-                "Gradle build failed with exit code ${execution.exitCode}"
+            summary = when {
+                execution.exitCode != 0 -> "Gradle build failed with exit code ${execution.exitCode}"
+                refreshResult?.success == false ->
+                    "Gradle build completed successfully, but IDE project model refresh failed"
+                refreshResult?.success == true ->
+                    "Gradle build completed successfully and IDE project model was refreshed"
+                else -> "Gradle build completed successfully"
             },
-            output = execution.output,
+            output = buildString {
+                if (execution.output.isNotBlank()) {
+                    append(execution.output.trimEnd())
+                }
+                refreshResult?.let { refresh ->
+                    if (isNotEmpty()) {
+                        appendLine()
+                        appendLine()
+                    }
+                    appendLine("IDE_MODEL_REFRESH: ${if (refresh.success) "SUCCESS" else "FAILED"}")
+                    append(refresh.message)
+                }
+            }.trim(),
             executedCommand = command,
             workingDirectory = projectRoot.absolutePath,
             exitCode = execution.exitCode
         )
     }
 
-    private fun executeTerminalCommand(toolCall: AIToolCall): AIToolExecutionResult {
-        val command = toolCall.argument("command").orEmpty()
-        if (command.isBlank()) {
+    private suspend fun executeTerminalCommand(
+        toolCall: AIToolCall,
+        onOutputLine: ((String) -> Unit)?
+    ): AIToolExecutionResult {
+        val rawCommand = toolCall.argument("command").orEmpty()
+        if (rawCommand.isBlank()) {
             return AIToolExecutionResult(
                 toolName = toolCall.name,
                 success = false,
                 summary = "No terminal command provided",
                 output = "Use COMMAND: pkg install ripgrep -y or another supported command."
+            )
+        }
+
+        val preparedCommand = prepareTerminalCommand(toolCall, rawCommand)
+        val command = preparedCommand.command
+
+        parseGradleTerminalCommand(toolCall, command, preparedCommand.workdirHint)?.let { gradleToolCall ->
+            val buildResult = executeBuildProject(gradleToolCall, onOutputLine)
+            return buildResult.copy(
+                summary = if (buildResult.success) {
+                    buildResult.summary.replaceFirst("Gradle build", "Gradle command")
+                } else {
+                    buildResult.summary
+                },
+                output = buildString {
+                    appendLine("REROUTED_FROM_TERMINAL_COMMAND: $rawCommand")
+                    preparedCommand.rewriteNote?.let { note ->
+                        appendLine("HOST_REWRITE: $note")
+                    }
+                    if (buildResult.output.isNotBlank()) {
+                        append(buildResult.output)
+                    }
+                }.trim(),
+                executedCommand = command
             )
         }
 
@@ -586,12 +672,14 @@ class AIToolExecutor(
                 toolName = toolCall.name,
                 success = false,
                 summary = "Command blocked by safety policy",
-                output = safetyError
+                output = buildBlockedCommandGuidance(command, safetyError),
+                executedCommand = command,
+                blockedBySafetyPolicy = true
             )
         }
 
-        val workingDirectory = resolveWorkingDirectory(toolCall.argument("workdir"))
-        val execution = runCommand(command, workingDirectory, COMMAND_TIMEOUT_SECONDS)
+        val workingDirectory = resolveWorkingDirectory(preparedCommand.workdirHint)
+        val execution = runCommand(command, workingDirectory, COMMAND_TIMEOUT_SECONDS, onOutputLine)
         return AIToolExecutionResult(
             toolName = toolCall.name,
             success = execution.exitCode == 0,
@@ -600,10 +688,86 @@ class AIToolExecutor(
             } else {
                 "Command failed with exit code ${execution.exitCode}"
             },
-            output = execution.output,
+            output = buildString {
+                preparedCommand.rewriteNote?.let { note ->
+                    appendLine("HOST_REWRITE: $note")
+                }
+                if (execution.output.isNotBlank()) {
+                    append(execution.output)
+                }
+            }.trim(),
             executedCommand = command,
             workingDirectory = workingDirectory.absolutePath,
             exitCode = execution.exitCode
+        )
+    }
+
+    private suspend fun refreshIdeProjectModel(
+        onOutputLine: ((String) -> Unit)?
+    ): ProjectModelRefreshResult {
+        val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+            ?: return ProjectModelRefreshResult(
+                success = false,
+                message = "BuildService unavailable. IDE project model was not refreshed."
+            )
+        if (!buildService.isToolingServerStarted()) {
+            return ProjectModelRefreshResult(
+                success = false,
+                message = "Tooling server unavailable. IDE project model was not refreshed."
+            )
+        }
+
+        val manager = ProjectManagerImpl.getInstance()
+        return try {
+            onOutputLine?.invoke("[ide] Refreshing project model...")
+            val result = manager.refreshProjectModel(buildService, gradleDistributionParams)
+            if (result == null) {
+                ProjectModelRefreshResult(
+                    success = false,
+                    message = "Project initialization returned no result."
+                )
+            } else if (!result.isSuccessful) {
+                ProjectModelRefreshResult(
+                    success = false,
+                    message = "Tooling sync failed: ${result.failure ?: "unknown failure"}"
+                )
+            } else {
+                ProjectModelRefreshResult(
+                    success = true,
+                    message = "Tooling sync succeeded and workspace/module state was rebuilt."
+                )
+            }
+        } catch (error: Throwable) {
+            ProjectModelRefreshResult(
+                success = false,
+                message = error.message ?: "Unknown refresh error"
+            )
+        }
+    }
+
+    private data class ProjectModelRefreshResult(
+        val success: Boolean,
+        val message: String
+    )
+
+    private fun prepareTerminalCommand(
+        toolCall: AIToolCall,
+        rawCommand: String
+    ): PreparedTerminalCommand {
+        var command = unwrapShellWrappedCommand(rawCommand)
+        var workdirHint = toolCall.argument("workdir")
+        val rewriteNotes = mutableListOf<String>()
+
+        extractLeadingCdCommand(command)?.let { extracted ->
+            command = extracted.command
+            workdirHint = extracted.workdir
+            rewriteNotes += "Converted leading cd into WORKDIR=${extracted.workdir}"
+        }
+
+        return PreparedTerminalCommand(
+            command = command,
+            workdirHint = workdirHint,
+            rewriteNote = rewriteNotes.joinToString(" | ").takeIf { it.isNotBlank() }
         )
     }
 
@@ -627,6 +791,143 @@ class AIToolExecutor(
         }
 
         return null
+    }
+
+    private fun buildBlockedCommandGuidance(command: String, reason: String): String {
+        val normalized = command.trim()
+        val firstToken = normalized.substringBefore(' ').trim()
+
+        val suggestions = buildList {
+            if (looksLikeGradleCommand(normalized)) {
+                add("Use build_project for Gradle wrapper builds, or issue a direct ./gradlew command and let it be routed as a build.")
+            }
+            if (normalized.startsWith("cd ", ignoreCase = true)) {
+                add("Do not chain 'cd ... && ...'. Put the target directory in WORKDIR and keep COMMAND to a single command.")
+            }
+            if (firstToken in setOf("cat", "sed", "grep", "rg", "find")) {
+                add("Prefer find_files, search_project, and read_file_range for focused project inspection instead of shelling out repeatedly.")
+            }
+            add("Do not repeat the same blocked command. Switch to another supported command or a different tool.")
+        }
+
+        return buildString {
+            appendLine(reason)
+            appendLine()
+            appendLine("Alternatives:")
+            suggestions.forEach { suggestion ->
+                appendLine("- $suggestion")
+            }
+        }.trim()
+    }
+
+    private fun unwrapShellWrappedCommand(command: String): String {
+        val trimmed = command.trim()
+        val match = Regex("""^(?:/system/bin/)?(?:bash|sh)\s+-l?c\s+(['"])(.*)\1$""")
+            .matchEntire(trimmed)
+            ?: return trimmed
+        return match.groupValues[2].trim().ifBlank { trimmed }
+    }
+
+    private fun extractLeadingCdCommand(command: String): CdCommandRewrite? {
+        val trimmed = command.trim()
+        val match = Regex("""^cd\s+((?:'[^']*'|"[^"]*"|[^\s;&|]+))\s*(?:&&|;)\s*(.+)$""")
+            .matchEntire(trimmed)
+            ?: return null
+        val rawDirectory = match.groupValues[1].trim()
+        val remainder = match.groupValues[2].trim()
+        if (remainder.isBlank()) {
+            return null
+        }
+
+        return CdCommandRewrite(
+            workdir = unquoteShellToken(rawDirectory),
+            command = remainder
+        )
+    }
+
+    private fun unquoteShellToken(value: String): String {
+        val trimmed = value.trim()
+        if (trimmed.length >= 2) {
+            if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+                (trimmed.startsWith('\'') && trimmed.endsWith('\''))
+            ) {
+                return trimmed.substring(1, trimmed.length - 1)
+            }
+        }
+        return trimmed
+    }
+
+    private fun parseGradleTerminalCommand(
+        toolCall: AIToolCall,
+        command: String,
+        workdirOverride: String? = null
+    ): AIToolCall? {
+        val tokens = tokenizeCommand(command)
+        if (tokens.isEmpty()) {
+            return null
+        }
+
+        val executableIndex = when {
+            isGradleExecutableToken(tokens.first()) -> 0
+            tokens.size >= 2 &&
+                tokens.first() in setOf("sh", "bash") &&
+                isGradleExecutableToken(tokens[1]) -> 1
+            else -> return null
+        }
+
+        val trailingTokens = tokens.drop(executableIndex + 1)
+        val tasks = trailingTokens.filterNot(::isGradleArgumentToken)
+        if (tasks.isEmpty()) {
+            return null
+        }
+        val args = trailingTokens.filter(::isGradleArgumentToken)
+
+        return AIToolCall(
+            callId = toolCall.callId,
+            name = "build_project",
+            arguments = buildMap {
+                put("tasks", tasks.joinToString(" "))
+                put("args", args.joinToString(" "))
+                workdirOverride
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { put("workdir", it) }
+                    ?: toolCall.argument("workdir")
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { put("workdir", it) }
+            },
+            rawBlock = toolCall.rawBlock,
+            rawArgumentsJson = toolCall.rawArgumentsJson
+        )
+    }
+
+    private fun tokenizeCommand(command: String): List<String> {
+        return command.trim()
+            .split(Regex("\\s+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+    }
+
+    private fun isGradleExecutableToken(token: String): Boolean {
+        val normalized = token.trim().substringAfterLast('/').substringAfterLast('\\')
+        return normalized in GRADLE_TERMINAL_TOKENS
+    }
+
+    private fun looksLikeGradleCommand(command: String): Boolean {
+        val tokens = tokenizeCommand(command)
+        if (tokens.isEmpty()) {
+            return false
+        }
+        return isGradleExecutableToken(tokens.first()) ||
+            (tokens.size >= 2 &&
+                tokens.first() in setOf("sh", "bash") &&
+                isGradleExecutableToken(tokens[1]))
+    }
+
+    private fun isGradleArgumentToken(token: String): Boolean {
+        return token.matches(Regex("--[A-Za-z0-9_.-]+(=.*)?")) ||
+            token.matches(Regex("-[A-Za-z]+")) ||
+            token.matches(Regex("-P[A-Za-z0-9_.-]+=.+")) ||
+            token.matches(Regex("-D[A-Za-z0-9_.-]+=.+"))
     }
 
     private fun normalizeReplacementContent(rawContent: String): String {
@@ -775,11 +1076,7 @@ class AIToolExecutor(
             .split(' ', '\n', '\t')
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .filter { token ->
-                token.matches(Regex("--[A-Za-z0-9_.-]+(=.*)?")) ||
-                    token.matches(Regex("-P[A-Za-z0-9_.-]+=.+")) ||
-                    token.matches(Regex("-D[A-Za-z0-9_.-]+=.+"))
-            }
+            .filter(::isGradleArgumentToken)
     }
 
     private fun resolveWorkingDirectory(rawWorkdir: String?): File {
@@ -790,12 +1087,30 @@ class AIToolExecutor(
             value.equals("HOME", ignoreCase = true) -> Environment.HOME
             value.equals("PREFIX", ignoreCase = true) -> Environment.PREFIX
             value.isNotBlank() && File(value).exists() -> File(value)
+            value.isNotBlank() && projectRoot != null -> {
+                val projectRelative = File(projectRoot, value)
+                if (projectRelative.exists()) {
+                    projectRelative
+                } else {
+                    val homeRelative = File(Environment.HOME, value)
+                    if (homeRelative.exists()) {
+                        homeRelative
+                    } else {
+                        projectRoot
+                    }
+                }
+            }
             projectRoot != null -> projectRoot
             else -> Environment.HOME
         }
     }
 
-    private fun runCommand(command: String, workingDirectory: File, timeoutSeconds: Long): CommandExecution {
+    private fun runCommand(
+        command: String,
+        workingDirectory: File,
+        timeoutSeconds: Long,
+        onOutputLine: ((String) -> Unit)?
+    ): CommandExecution {
         val shell = when {
             Environment.BASH_SHELL.exists() -> Environment.BASH_SHELL.absolutePath
             else -> "/system/bin/sh"
@@ -822,7 +1137,10 @@ class AIToolExecutor(
         val outputBuffer = RollingOutputBuffer(MAX_OUTPUT_CHARS)
         val readerThread = Thread {
             process.inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line -> outputBuffer.appendLine(line) }
+                lines.forEach { line ->
+                    outputBuffer.appendLine(line)
+                    onOutputLine?.invoke(line)
+                }
             }
         }
         readerThread.start()
@@ -833,7 +1151,9 @@ class AIToolExecutor(
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
             }
-            outputBuffer.appendLine("[TIMEOUT] Command exceeded ${timeoutSeconds}s and was terminated.")
+            val timeoutLine = "[TIMEOUT] Command exceeded ${timeoutSeconds}s and was terminated."
+            outputBuffer.appendLine(timeoutLine)
+            onOutputLine?.invoke(timeoutLine)
         }
 
         readerThread.join(2_000)
@@ -875,6 +1195,17 @@ private fun String?.toBooleanStrictOrFalse(): Boolean {
 private data class CommandExecution(
     val exitCode: Int,
     val output: String
+)
+
+private data class PreparedTerminalCommand(
+    val command: String,
+    val workdirHint: String?,
+    val rewriteNote: String? = null
+)
+
+private data class CdCommandRewrite(
+    val workdir: String,
+    val command: String
 )
 
 private class RollingOutputBuffer(

@@ -5,10 +5,17 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.widget.doAfterTextChanged
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
@@ -17,15 +24,8 @@ import com.tom.rv2ide.R
 import com.tom.rv2ide.activities.ModificationData
 import com.tom.rv2ide.activities.ReviewChangesActivity
 import com.tom.rv2ide.activities.editor.EditorHandlerActivity
-import com.tom.rv2ide.artificial.agents.AIAgentManager
-import com.tom.rv2ide.artificial.tools.AIToolCall
-import com.tom.rv2ide.artificial.tools.AIToolExecutionResult
-import com.tom.rv2ide.fragments.assistant.AIAssistantDiffPreview.Companion.fromContents
 import com.tom.rv2ide.utils.ProjectHelper.getProjectRoot
 import java.io.File
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class AIAssistantConsoleFragment : Fragment() {
@@ -38,13 +38,18 @@ class AIAssistantConsoleFragment : Fragment() {
     private lateinit var stopButton: MaterialButton
     private lateinit var reviewButton: MaterialButton
     private lateinit var clearButton: MaterialButton
+    private lateinit var jumpToBottomButton: MaterialButton
 
-    private val aiAgent by lazy { AIAgentManager(requireContext()) }
+    private val consoleViewModel: AIAssistantConsoleViewModel by activityViewModels()
     private val timelineAdapter by lazy { AIAssistantTimelineAdapter(::openDiffFile) }
-
-    private var executionJob: Job? = null
-    private var lastModifications: List<AIAgentManager.ModificationResult> = emptyList()
-    private var projectRootPath: String = ""
+    private var applyingPromptState = false
+    private var userAtBottom = true
+    private var hasAutoScrolledInitialState = false
+    private var forceScrollOnNextTimelineUpdate = false
+    private var unreadTimelineCount = 0
+    private var latestUiState = AIAssistantConsoleUiState()
+    private var pendingHistoryPrependAnchor: TimelinePrependAnchor? = null
+    private var suppressUnreadForNextTimelineUpdate = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -59,21 +64,14 @@ class AIAssistantConsoleFragment : Fragment() {
         bindViews(view)
         setupTimeline()
         setupActions()
-        loadProject()
-        refreshProviderStatus()
-        if (savedInstanceState == null) {
-            showWelcome()
-        }
-        updateActionState(isRunning = false)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        refreshProviderStatus()
+        consoleViewModel.bindProject(getProjectRoot().absolutePath.toString())
+        consoleViewModel.setFileRefreshHandler(::refreshCurrentEditorIfNeeded)
+        consoleViewModel.ensureWelcome()
+        bindUiState()
     }
 
     override fun onDestroyView() {
-        executionJob?.cancel()
+        consoleViewModel.setFileRefreshHandler(null)
         super.onDestroyView()
     }
 
@@ -86,19 +84,46 @@ class AIAssistantConsoleFragment : Fragment() {
         stopButton = root.findViewById(R.id.stopButton)
         reviewButton = root.findViewById(R.id.reviewButton)
         clearButton = root.findViewById(R.id.clearButton)
+        jumpToBottomButton = root.findViewById(R.id.jumpToBottomButton)
     }
 
     private fun setupTimeline() {
         timelineRecyclerView.apply {
             layoutManager = LinearLayoutManager(requireContext()).apply {
-                stackFromEnd = false
+                stackFromEnd = true
             }
             adapter = timelineAdapter
-            itemAnimator = null
+            itemAnimator = DefaultItemAnimator().apply {
+                supportsChangeAnimations = false
+                addDuration = 160
+                changeDuration = 0
+                moveDuration = 120
+                removeDuration = 100
+            }
+            (itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+            addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    val wasAtBottom = userAtBottom
+                    userAtBottom = isAtBottom()
+                    if (userAtBottom && !wasAtBottom) {
+                        clearUnreadTimelineIndicator()
+                    } else {
+                        updateJumpToBottomButton()
+                    }
+                    maybeLoadOlderHistory(dy)
+                }
+            })
         }
+        updateJumpToBottomButton()
     }
 
     private fun setupActions() {
+        promptInput.doAfterTextChanged { editable ->
+            if (!applyingPromptState) {
+                consoleViewModel.updatePromptDraft(editable?.toString().orEmpty())
+            }
+        }
+
         sendButton.setOnClickListener {
             val prompt = promptInput.text?.toString().orEmpty().trim()
             if (prompt.isBlank()) {
@@ -106,16 +131,16 @@ class AIAssistantConsoleFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            promptInput.text?.clear()
             if (handleSlashCommand(prompt)) {
                 return@setOnClickListener
             }
 
-            executePrompt(prompt)
+            forceScrollOnNextTimelineUpdate = true
+            consoleViewModel.executePrompt(prompt)
         }
 
         stopButton.setOnClickListener {
-            cancelExecution(manualStop = true)
+            consoleViewModel.stopExecution()
         }
 
         reviewButton.setOnClickListener {
@@ -123,47 +148,90 @@ class AIAssistantConsoleFragment : Fragment() {
         }
 
         clearButton.setOnClickListener {
-            cancelExecution(manualStop = false)
-            lastModifications = emptyList()
-            aiAgent.clearConversation()
-            timelineAdapter.clearAll()
-            showWelcome()
-            updateActionState(isRunning = false)
+            consoleViewModel.clearTimeline()
             showSnackbar("Assistant timeline cleared")
         }
-    }
 
-    private fun loadProject() {
-        projectRootPath = getProjectRoot().absolutePath.toString()
-        if (projectRootPath.isNotBlank()) {
-            aiAgent.setProjectRoot(projectRootPath)
+        jumpToBottomButton.setOnClickListener {
+            clearUnreadTimelineIndicator()
+            forceScrollOnNextTimelineUpdate = true
+            if (!consoleViewModel.collapseHistoryToLatest()) {
+                scrollToBottom(force = true, smooth = true)
+            }
         }
     }
 
-    private fun refreshProviderStatus() {
-        providerText.text = aiAgent.getCurrentProviderName()
-        modelText.text = aiAgent.getCurrentModelName()
+    private fun bindUiState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                consoleViewModel.uiState.collect(::renderState)
+            }
+        }
     }
 
-    private fun showWelcome() {
-        timelineAdapter.append(
-            AIAssistantWelcomeItem(
-                title = "AI Assistant",
-                body = "Use natural language or slash commands. Try /help, /review, /clear, or ask it to search files, edit ranges, and build."
-            )
-        )
-        scrollToBottom()
+    private fun renderState(state: AIAssistantConsoleUiState) {
+        latestUiState = state
+        providerText.text = state.providerLabel
+        modelText.text = state.modelLabel
+        sendButton.isEnabled = !state.isRunning
+        stopButton.isEnabled = state.isRunning
+        promptInput.isEnabled = !state.isRunning
+        reviewButton.isEnabled = state.hasReviewableChanges
+
+        val currentDraft = promptInput.text?.toString().orEmpty()
+        if (currentDraft != state.promptDraft) {
+            applyingPromptState = true
+            promptInput.setText(state.promptDraft)
+            promptInput.setSelection(state.promptDraft.length)
+            applyingPromptState = false
+        }
+
+        if (state.timelineItems.isEmpty()) {
+            hasAutoScrolledInitialState = false
+            userAtBottom = true
+            forceScrollOnNextTimelineUpdate = false
+            unreadTimelineCount = 0
+            pendingHistoryPrependAnchor = null
+            suppressUnreadForNextTimelineUpdate = false
+            updateJumpToBottomButton()
+        }
+
+        if (timelineAdapter.getItemsSnapshot() != state.timelineItems) {
+            val previousItems = timelineAdapter.getItemsSnapshot()
+            val shouldAutoScroll = pendingHistoryPrependAnchor == null &&
+                shouldAutoScroll(previousItems, state.timelineItems)
+            timelineAdapter.replaceAll(state.timelineItems) {
+                if (restoreHistoryPrependAnchorIfNeeded(state)) {
+                    return@replaceAll
+                }
+                if (shouldAutoScroll) {
+                    scrollToBottom(
+                        force = forceScrollOnNextTimelineUpdate || !hasAutoScrolledInitialState,
+                        smooth = forceScrollOnNextTimelineUpdate
+                    )
+                    clearUnreadTimelineIndicator()
+                } else if (suppressUnreadForNextTimelineUpdate) {
+                    suppressUnreadForNextTimelineUpdate = false
+                    updateJumpToBottomButton()
+                } else {
+                    registerUnreadTimelineActivity(previousItems, state.timelineItems)
+                }
+            }
+        } else {
+            updateJumpToBottomButton()
+        }
     }
 
     private fun handleSlashCommand(commandText: String): Boolean {
         val normalized = commandText.trim()
         return when {
             normalized.equals("/clear", ignoreCase = true) -> {
-                clearButton.performClick()
+                consoleViewModel.clearTimeline()
+                showSnackbar("Assistant timeline cleared")
                 true
             }
             normalized.equals("/stop", ignoreCase = true) -> {
-                stopButton.performClick()
+                consoleViewModel.stopExecution()
                 true
             }
             normalized.equals("/review", ignoreCase = true) -> {
@@ -171,241 +239,196 @@ class AIAssistantConsoleFragment : Fragment() {
                 true
             }
             normalized.equals("/help", ignoreCase = true) -> {
-                timelineAdapter.append(
-                    AIAssistantStatusItem(
-                        title = "Commands",
-                        body = "/help  /review  /stop  /clear",
-                        tone = AIAssistantTone.NEUTRAL
-                    )
-                )
-                scrollToBottom()
+                consoleViewModel.showCommandsHelp()
                 true
             }
             else -> false
         }
     }
 
-    private fun executePrompt(prompt: String) {
-        executionJob?.cancel()
-        lastModifications = emptyList()
-        refreshProviderStatus()
-        timelineAdapter.append(AIAssistantUserItem(prompt))
-        timelineAdapter.append(
-            AIAssistantStatusItem(
-                title = "Queued",
-                body = "Preparing assistant run",
-                tone = AIAssistantTone.RUNNING
-            )
-        )
-        scrollToBottom()
-        updateActionState(isRunning = true)
-
-        executionJob = lifecycleScope.launch {
-            try {
-                aiAgent.executeRequest(prompt, object : AIAgentManager.AIAgentCallback {
-                    override fun onProcessing(message: String) {
-                        appendOnMain(
-                            AIAssistantStatusItem(
-                                title = "Status",
-                                body = message,
-                                tone = AIAssistantTone.RUNNING
-                            )
-                        )
-                    }
-
-                    override fun onFileModifying(filePath: String, fileName: String) {
-                        appendOnMain(
-                            AIAssistantStatusItem(
-                                title = "Editing $fileName",
-                                body = filePath,
-                                tone = AIAssistantTone.RUNNING
-                            )
-                        )
-                    }
-
-                    override fun onFileModified(filePath: String, fileName: String, success: Boolean) {
-                        appendOnMain(
-                            AIAssistantStatusItem(
-                                title = if (success) "Updated $fileName" else "Failed to update $fileName",
-                                body = filePath,
-                                tone = if (success) AIAssistantTone.SUCCESS else AIAssistantTone.ERROR
-                            )
-                        )
-
-                        if (success) {
-                            refreshCurrentEditorIfNeeded(filePath)
-                        }
-                    }
-
-                    override fun onSuccess(
-                        response: String,
-                        modifications: List<AIAgentManager.ModificationResult>,
-                        summary: AIAgentManager.ModificationSummary
-                    ) {
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            lastModifications = modifications
-                            appendDiffItems(modifications)
-                            val finalResponse = response.takeIf {
-                                it.isNotBlank() && !it.contains("FILE_TO_MODIFY:")
-                            } ?: buildString {
-                                append("Applied ${summary.successfulFiles}/${summary.totalFiles} file changes")
-                                if (summary.failedFiles > 0) {
-                                    append(" (${summary.failedFiles} failed)")
-                                }
-                            }
-                            timelineAdapter.append(AIAssistantResponseItem(finalResponse))
-                            updateActionState(isRunning = false)
-                            scrollToBottom()
-                        }
-                    }
-
-                    override fun onTextResponse(response: String, summary: AIAgentManager.ModificationSummary) {
-                        appendOnMain(AIAssistantResponseItem(response), finishRun = true)
-                    }
-
-                    override fun onError(message: String) {
-                        appendOnMain(
-                            AIAssistantStatusItem(
-                                title = "Error",
-                                body = message,
-                                tone = AIAssistantTone.ERROR
-                            ),
-                            finishRun = true
-                        )
-                    }
-
-                    override fun onRetry(attemptNumber: Int, message: String) {
-                        appendOnMain(
-                            AIAssistantStatusItem(
-                                title = "Retry #$attemptNumber",
-                                body = message,
-                                tone = AIAssistantTone.WARNING
-                            )
-                        )
-                    }
-
-                    override fun onToolCallStarted(toolCall: AIToolCall) {
-                        appendOnMain(
-                            AIAssistantToolItem(
-                                title = "Tool · ${toolCall.name}",
-                                summary = toolCallSummary(toolCall),
-                                workingDirectory = toolCall.argument("workdir"),
-                                tone = AIAssistantTone.RUNNING
-                            )
-                        )
-                    }
-
-                    override fun onToolCallCompleted(result: AIToolExecutionResult) {
-                        appendOnMain(
-                            AIAssistantToolItem(
-                                title = buildString {
-                                    append("Tool ")
-                                    append(if (result.success) "✓" else "✕")
-                                    append(" · ")
-                                    append(result.toolName)
-                                },
-                                summary = result.summary,
-                                command = result.executedCommand,
-                                workingDirectory = result.workingDirectory,
-                                outputPreview = result.output.takeIf { it.isNotBlank() }?.trim()?.takeLast(800),
-                                tone = if (result.success) AIAssistantTone.SUCCESS else AIAssistantTone.ERROR
-                            )
-                        )
-                    }
-                })
-            } catch (_: CancellationException) {
-                appendOnMain(
-                    AIAssistantStatusItem(
-                        title = "Stopped",
-                        body = "Assistant run was cancelled",
-                        tone = AIAssistantTone.WARNING
-                    ),
-                    finishRun = true
-                )
-            } catch (error: Exception) {
-                appendOnMain(
-                    AIAssistantStatusItem(
-                        title = "Exception",
-                        body = error.message ?: "Unexpected error",
-                        tone = AIAssistantTone.ERROR
-                    ),
-                    finishRun = true
-                )
-            }
-        }
-    }
-
-    private fun toolCallSummary(toolCall: AIToolCall): String {
-        return when (toolCall.name.lowercase()) {
-            "find_files", "search_project" -> toolCall.argument("pattern").orEmpty()
-            "read_file_range", "replace_file_range" -> listOfNotNull(
-                toolCall.argument("file"),
-                toolCall.argument("start_line")?.let { start ->
-                    val end = toolCall.argument("end_line") ?: "?"
-                    "lines $start-$end"
-                }
-            ).joinToString(" · ")
-            "build_project" -> toolCall.argument("tasks").orEmpty()
-            "run_terminal_command" -> toolCall.argument("command").orEmpty()
-            else -> toolCall.rawBlock
-        }.ifBlank { toolCall.rawBlock }
-    }
-
-    private fun appendDiffItems(modifications: List<AIAgentManager.ModificationResult>) {
-        val diffItems = modifications.map { modification ->
-            val preview = fromContents(modification.previousContent, modification.content)
-            AIAssistantDiffItem(
-                filePath = modification.filePath,
-                changeLabel = if (modification.isNewFile) "Created" else "Updated",
-                preview = preview
-            )
-        }
-        timelineAdapter.appendAll(diffItems)
-    }
-
-    private fun appendOnMain(
-        item: AIAssistantTimelineItem,
-        finishRun: Boolean = false
+    private fun scrollToBottom(
+        force: Boolean = false,
+        smooth: Boolean = false
     ) {
-        lifecycleScope.launch(Dispatchers.Main) {
-            timelineAdapter.append(item)
-            if (finishRun) {
-                updateActionState(isRunning = false)
-            }
-            scrollToBottom()
-        }
-    }
-
-    private fun updateActionState(isRunning: Boolean) {
-        sendButton.isEnabled = !isRunning
-        stopButton.isEnabled = isRunning
-        promptInput.isEnabled = !isRunning
-        reviewButton.isEnabled = lastModifications.isNotEmpty()
-    }
-
-    private fun cancelExecution(manualStop: Boolean) {
-        executionJob?.cancel()
-        executionJob = null
-        updateActionState(isRunning = false)
-        if (manualStop) {
-            timelineAdapter.append(
-                AIAssistantStatusItem(
-                    title = "Stopped",
-                    body = "Manual stop requested",
-                    tone = AIAssistantTone.WARNING
-                )
-            )
-            scrollToBottom()
-        }
-    }
-
-    private fun scrollToBottom() {
         timelineRecyclerView.post {
             val count = timelineAdapter.itemCount
-            if (count > 0) {
-                timelineRecyclerView.scrollToPosition(count - 1)
+            if (count <= 0) {
+                forceScrollOnNextTimelineUpdate = false
+                return@post
             }
+            if (!force && !isAtBottom()) {
+                forceScrollOnNextTimelineUpdate = false
+                return@post
+            }
+            timelineRecyclerView.stopScroll()
+            if (smooth) {
+                timelineRecyclerView.smoothScrollToPosition(count - 1)
+            } else {
+                timelineRecyclerView.scrollBy(0, timelineRecyclerView.computeVerticalScrollRange())
+                if (timelineRecyclerView.canScrollVertically(1)) {
+                    timelineRecyclerView.scrollToPosition(count - 1)
+                    timelineRecyclerView.scrollBy(0, timelineRecyclerView.computeVerticalScrollRange())
+                }
+            }
+            hasAutoScrolledInitialState = true
+            userAtBottom = true
+            forceScrollOnNextTimelineUpdate = false
+            updateJumpToBottomButton()
         }
+    }
+
+    private fun shouldAutoScroll(
+        oldItems: List<AIAssistantTimelineItem>,
+        newItems: List<AIAssistantTimelineItem>
+    ): Boolean {
+        if (newItems.isEmpty()) {
+            return false
+        }
+        if (forceScrollOnNextTimelineUpdate) {
+            return true
+        }
+        if (oldItems.isEmpty()) {
+            return true
+        }
+        val timelineChanged = oldItems.size != newItems.size || oldItems.lastOrNull() != newItems.lastOrNull()
+        if (!timelineChanged) {
+            return false
+        }
+        return forceScrollOnNextTimelineUpdate || userAtBottom || isAtBottom()
+    }
+
+    private fun registerUnreadTimelineActivity(
+        oldItems: List<AIAssistantTimelineItem>,
+        newItems: List<AIAssistantTimelineItem>
+    ) {
+        if (newItems.isEmpty() || isAtBottom()) {
+            clearUnreadTimelineIndicator()
+            return
+        }
+        val previousIds = oldItems.asSequence()
+            .map(AIAssistantTimelineItem::id)
+            .toHashSet()
+        val addedCount = newItems.count { item -> item.id !in previousIds }
+        unreadTimelineCount = when {
+            addedCount > 0 -> (unreadTimelineCount + addedCount).coerceAtMost(99)
+            unreadTimelineCount == 0 -> 1
+            else -> unreadTimelineCount
+        }
+        updateJumpToBottomButton()
+    }
+
+    private fun clearUnreadTimelineIndicator() {
+        unreadTimelineCount = 0
+        updateJumpToBottomButton()
+    }
+
+    private fun updateJumpToBottomButton() {
+        if (!this::jumpToBottomButton.isInitialized || !this::timelineRecyclerView.isInitialized) {
+            return
+        }
+        val atBottom = isAtBottom()
+        if (atBottom && unreadTimelineCount > 0) {
+            unreadTimelineCount = 0
+        }
+        val shouldShow = !atBottom || unreadTimelineCount > 0
+        jumpToBottomButton.isVisible = shouldShow
+        if (!shouldShow) {
+            return
+        }
+        jumpToBottomButton.text = if (unreadTimelineCount > 0) {
+            "${if (unreadTimelineCount >= 99) "99+" else unreadTimelineCount} new"
+        } else {
+            "Latest"
+        }
+    }
+
+    private fun maybeLoadOlderHistory(scrollDeltaY: Int) {
+        if (!this::timelineRecyclerView.isInitialized) {
+            return
+        }
+        if (scrollDeltaY >= 0) {
+            return
+        }
+        if (pendingHistoryPrependAnchor != null || !latestUiState.canLoadMoreHistory) {
+            return
+        }
+        if (timelineRecyclerView.canScrollVertically(-1)) {
+            return
+        }
+
+        val layoutManager = timelineRecyclerView.layoutManager as? LinearLayoutManager ?: return
+        val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
+        if (firstVisiblePosition == RecyclerView.NO_POSITION || firstVisiblePosition > 1) {
+            return
+        }
+
+        val anchor = captureHistoryPrependAnchor(layoutManager) ?: return
+        pendingHistoryPrependAnchor = anchor
+        suppressUnreadForNextTimelineUpdate = true
+        if (!consoleViewModel.loadOlderHistory()) {
+            pendingHistoryPrependAnchor = null
+            suppressUnreadForNextTimelineUpdate = false
+        }
+    }
+
+    private fun captureHistoryPrependAnchor(
+        layoutManager: LinearLayoutManager
+    ): TimelinePrependAnchor? {
+        var anchorPosition = layoutManager.findFirstVisibleItemPosition()
+        if (anchorPosition == RecyclerView.NO_POSITION) {
+            return null
+        }
+
+        while (anchorPosition < timelineAdapter.itemCount) {
+            val item = timelineAdapter.getItemAt(anchorPosition)
+            if (item !is AIAssistantHistoryDividerItem) {
+                break
+            }
+            anchorPosition += 1
+        }
+
+        if (anchorPosition !in 0 until timelineAdapter.itemCount) {
+            return null
+        }
+
+        val anchorItem = timelineAdapter.getItemAt(anchorPosition) ?: return null
+        val anchorView = layoutManager.findViewByPosition(anchorPosition) ?: return null
+        return TimelinePrependAnchor(
+            itemId = anchorItem.id,
+            topOffset = anchorView.top
+        )
+    }
+
+    private fun restoreHistoryPrependAnchorIfNeeded(
+        state: AIAssistantConsoleUiState
+    ): Boolean {
+        val anchor = pendingHistoryPrependAnchor ?: return false
+        pendingHistoryPrependAnchor = null
+        suppressUnreadForNextTimelineUpdate = false
+
+        val layoutManager = timelineRecyclerView.layoutManager as? LinearLayoutManager ?: return false
+        val anchorPosition = state.timelineItems.indexOfFirst { it.id == anchor.itemId }
+        if (anchorPosition < 0) {
+            updateJumpToBottomButton()
+            return true
+        }
+
+        timelineRecyclerView.post {
+            layoutManager.scrollToPositionWithOffset(anchorPosition, anchor.topOffset)
+            userAtBottom = isAtBottom()
+            updateJumpToBottomButton()
+        }
+        return true
+    }
+
+    private fun isAtBottom(): Boolean {
+        if (!timelineRecyclerView.isAttachedToWindow) {
+            return true
+        }
+        if (timelineAdapter.itemCount <= 0) {
+            return true
+        }
+        return !timelineRecyclerView.canScrollVertically(1)
     }
 
     private fun openDiffFile(item: AIAssistantDiffItem) {
@@ -420,13 +443,14 @@ class AIAssistantConsoleFragment : Fragment() {
     }
 
     private fun openReview() {
-        if (lastModifications.isEmpty()) {
+        val modifications = consoleViewModel.lastModificationsSnapshot()
+        if (modifications.isEmpty()) {
             showSnackbar("No changes to review yet")
             return
         }
 
-        val modifications = ArrayList(
-            lastModifications.map {
+        val reviewPayload = ArrayList(
+            modifications.map {
                 ModificationData(
                     filePath = it.filePath,
                     content = it.content,
@@ -437,7 +461,7 @@ class AIAssistantConsoleFragment : Fragment() {
 
         startActivity(
             Intent(requireContext(), ReviewChangesActivity::class.java)
-                .putParcelableArrayListExtra("modifications", modifications)
+                .putParcelableArrayListExtra("modifications", reviewPayload)
         )
     }
 
@@ -461,4 +485,9 @@ class AIAssistantConsoleFragment : Fragment() {
         val anchorView = activity?.findViewById<View>(android.R.id.content) ?: view ?: return
         Snackbar.make(anchorView, message, Snackbar.LENGTH_SHORT).show()
     }
+
+    private data class TimelinePrependAnchor(
+        val itemId: Long,
+        val topOffset: Int
+    )
 }

@@ -18,17 +18,26 @@
 package com.tom.rv2ide.actions
 
 import android.content.Context
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.tom.rv2ide.R
 import com.tom.rv2ide.projects.IProjectManager
 import com.tom.rv2ide.projects.android.AndroidModule
+import com.tom.rv2ide.projects.builder.BuildService
+import com.tom.rv2ide.projects.internal.ProjectManagerImpl
+import com.tom.rv2ide.lookup.Lookup
+import com.tom.rv2ide.services.builder.gradleDistributionParams
 import com.tom.rv2ide.utils.DialogUtils
 import com.tom.rv2ide.utils.ILogger
 import com.tom.rv2ide.utils.flashError
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** @see openApplicationModuleChooser */
-inline fun openApplicationModuleChooser(
+fun openApplicationModuleChooser(
     data: ActionData,
-    crossinline callback: (AndroidModule) -> Unit,
+    callback: (AndroidModule) -> Unit,
 ) = openApplicationModuleChooser(data.requireContext(), callback)
 
 /**
@@ -38,31 +47,76 @@ inline fun openApplicationModuleChooser(
  *
  * @param
  */
-inline fun openApplicationModuleChooser(
+fun openApplicationModuleChooser(
     context: Context,
-    crossinline callback: (AndroidModule) -> Unit,
+    callback: (AndroidModule) -> Unit,
 ) {
-  val applications =
-      IProjectManager.getInstance()
-          .getWorkspace()
-          ?.androidProjects()
-          ?.filter(AndroidModule::isApplication)
-          ?.toList() ?: emptyList()
+  val applications = currentApplicationModules()
 
   if (applications.isEmpty()) {
+    val lifecycleOwner = context as? LifecycleOwner
+    val manager = IProjectManager.getInstance() as? ProjectManagerImpl
+    val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+    if (
+        lifecycleOwner != null &&
+            manager != null &&
+            buildService != null &&
+            buildService.isToolingServerStarted() &&
+            !buildService.isBuildInProgress
+    ) {
+      lifecycleOwner.lifecycleScope.launch {
+        val refreshedApplications =
+            withContext(Dispatchers.IO) {
+              try {
+                manager.refreshProjectModel(buildService, gradleDistributionParams)
+                currentApplicationModules()
+              } catch (error: Throwable) {
+                ILogger.ROOT.warn(
+                    "Failed to refresh project model before resolving application modules.",
+                    error,
+                )
+                emptyList()
+              }
+            }
+
+        if (refreshedApplications.isEmpty()) {
+          flashError(R.string.msg_launch_failure_no_app_module)
+          ILogger.ROOT.error("Cannot run application. No application modules found in project.")
+          return@launch
+        }
+
+        showApplicationModuleChooser(context, refreshedApplications, callback)
+      }
+      return
+    }
+
     flashError(R.string.msg_launch_failure_no_app_module)
     ILogger.ROOT.error("Cannot run application. No application modules found in project.")
     return
   }
 
+  showApplicationModuleChooser(context, applications, callback)
+}
+
+private fun currentApplicationModules(): List<AndroidModule> {
+  return IProjectManager.getInstance()
+      .getWorkspace()
+      ?.androidProjects()
+      ?.filter(AndroidModule::isApplication)
+      ?.toList()
+      .orEmpty()
+}
+
+private inline fun showApplicationModuleChooser(
+    context: Context,
+    applications: List<AndroidModule>,
+    crossinline callback: (AndroidModule) -> Unit,
+) {
   if (applications.size == 1) {
-    // Only one application module in available in the project.
     callback(applications.first())
     return
   }
 
-  // there are multiple application modules in the project
-  // ask the user to select the application module to build
   val builder =
       DialogUtils.newSingleChoiceDialog(
           context,

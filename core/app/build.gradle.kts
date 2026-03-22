@@ -243,6 +243,7 @@ dependencies {
   implementation(libs.common.retrofit.gson)
   implementation(libs.common.charts)
   implementation(libs.common.hiddenApiBypass)
+  implementation(libs.common.markwon.core)
   implementation(libs.aapt2.common)
 
   implementation(libs.google.auto.service.annotations)
@@ -329,8 +330,4 @@ dependencies {
   implementation(projects.xml.lsp)
   implementation(projects.xml.utils)
 
-  // This is to build the tooling-api-impl project before the app is built
-  // So we always copy the latest JAR file to assets
-  compileOnly(projects.tooling.impl)
-  
 }

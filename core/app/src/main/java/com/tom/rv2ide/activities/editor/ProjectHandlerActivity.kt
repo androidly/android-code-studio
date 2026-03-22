@@ -30,6 +30,8 @@ import com.blankj.utilcode.util.ThreadUtils
 import com.tom.rv2ide.R
 import com.tom.rv2ide.R.string
 import com.tom.rv2ide.databinding.LayoutSearchProjectBinding
+import com.tom.rv2ide.eventbus.events.EventReceiver
+import com.tom.rv2ide.eventbus.events.project.ProjectInitializedEvent
 import com.tom.rv2ide.flashbar.Flashbar
 import com.tom.rv2ide.fragments.sheets.ProgressSheet
 import com.tom.rv2ide.handlers.EditorBuildEventListener
@@ -40,6 +42,7 @@ import com.tom.rv2ide.lsp.IDELanguageClientImpl
 import com.tom.rv2ide.lsp.java.utils.CancelChecker
 import com.tom.rv2ide.preferences.internal.GeneralPreferences
 import com.tom.rv2ide.projects.GradleProject
+import com.tom.rv2ide.projects.IWorkspace
 import com.tom.rv2ide.projects.builder.BuildService
 import com.tom.rv2ide.projects.internal.ProjectManagerImpl
 import com.tom.rv2ide.services.builder.GradleBuildService
@@ -73,13 +76,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import android.view.WindowManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 
 /** @author Akash Yadav
  * Modifications by
  * Mohammed-baqer-null @ https://github.com/Mohammed-baqer-null
  */
 @Suppress("MemberVisibilityCanBePrivate")
-abstract class ProjectHandlerActivity : BaseEditorActivity() {
+abstract class ProjectHandlerActivity : BaseEditorActivity(), EventReceiver {
 
   protected val buildVariantsViewModel by viewModels<BuildVariantsViewModel>()
 
@@ -91,6 +97,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
   protected var shouldInitialize = false
 
   protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+  private var hadUsableWorkspaceBeforeInit = false
 
   val findInProjectDialog: AlertDialog
     get() {
@@ -153,6 +160,18 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     startServices()
+  }
+
+  override fun onStart() {
+    super.onStart()
+    register()
+  }
+
+  override fun onStop() {
+    if (EventBus.getDefault().isRegistered(this)) {
+      unregister()
+    }
+    super.onStop()
   }
 
   override fun onSaveInstanceState(outState: Bundle) {
@@ -385,8 +404,6 @@ fun initializeProject(buildVariants: Map<String, String>) {
       return
     }
 
-    ThreadUtils.runOnUiThread { preProjectInit() }
-
     val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
     if (buildService == null) {
       log.error("No build service found. Cannot initialize project.")
@@ -397,6 +414,9 @@ fun initializeProject(buildVariants: Map<String, String>) {
       flashError(string.msg_tooling_server_unavailable)
       return
     }
+
+    hadUsableWorkspaceBeforeInit = manager.hasUsableWorkspace()
+    ThreadUtils.runOnUiThread { preProjectInit() }
 
     this.initializingFuture =
         if (shouldInitialize || (!isFromSavedInstance && !initialized)) {
@@ -527,10 +547,13 @@ fun initializeProject(buildVariants: Map<String, String>) {
         val workspace = manager.getWorkspace()
 
         if (workspace == null) {
+          val canContinueWithLastWorkspace =
+              hadUsableWorkspaceBeforeInit && manager.hasUsableWorkspace()
           com.tom.rv2ide.tasks.runOnUiThread {
             showProjectSetupFailedDialog(
                 "Workspace initialization failed. The project structure could not be analyzed.",
                 null,
+                canContinueWithLastWorkspace,
             )
             postProjectInit(false, null)
           }
@@ -543,6 +566,8 @@ fun initializeProject(buildVariants: Map<String, String>) {
         com.tom.rv2ide.tasks.runOnUiThread { postProjectInit(true, null) }
       } catch (e: Exception) {
         log.error("Project setup failed", e)
+        val canContinueWithLastWorkspace =
+            hadUsableWorkspaceBeforeInit && manager.hasUsableWorkspace()
         com.tom.rv2ide.tasks.runOnUiThread {
           val errorMessage =
               when {
@@ -552,14 +577,18 @@ fun initializeProject(buildVariants: Map<String, String>) {
                     "Failed to build project model: ${e.message}"
                 else -> "Project setup failed: ${e.message ?: "Unknown error occurred"}"
               }
-          showProjectSetupFailedDialog(errorMessage, e)
+          showProjectSetupFailedDialog(errorMessage, e, canContinueWithLastWorkspace)
           postProjectInit(false, null)
         }
       }
     }
   }
 
-  private fun showProjectSetupFailedDialog(errorMessage: String, exception: Exception?) {
+  private fun showProjectSetupFailedDialog(
+      errorMessage: String,
+      exception: Exception?,
+      canContinueWithLastWorkspace: Boolean,
+  ) {
       if (isFinishing || isDestroyed) {
           log.warn("Activity is finishing/destroyed. Cannot show error dialog.")
           return
@@ -592,38 +621,33 @@ fun initializeProject(buildVariants: Map<String, String>) {
         }
       }
   
-      try {
-        val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        val clip = android.content.ClipData.newPlainText("Project Setup Error", fullErrorDetails)
-        clipboard.setPrimaryClip(clip)
-        log.info("Error details copied to clipboard")
-      } catch (e: Exception) {
-        log.error("Failed to copy error to clipboard", e)
-      }
-  
       if (isFinishing || isDestroyed) {
           log.warn("Activity finished before showing dialog.")
           return
       }
   
       val builder = newMaterialDialogBuilder(this)
-      builder.setTitle("Project Setup Failed")
+      builder.setTitle(if (canContinueWithLastWorkspace) "Project Sync Failed" else "Project Setup Failed")
       builder.setMessage(
-          "The project could not be initialized properly.\n\n$errorMessage\n\nFull error details have been copied to clipboard.\n\nYou can try:\n• Update top level build.gradle\n• Syncing the project again\n• Checking if all required files are present\n• Restarting the IDE"
+          if (canContinueWithLastWorkspace) {
+            "The latest sync could not be applied.\n\n$errorMessage\n\nThe last successfully indexed project model is still available. You can retry the sync, continue working with the cached model, or inspect the detailed error."
+          } else {
+            "The project could not be initialized properly.\n\n$errorMessage\n\nYou can retry setup, inspect the detailed error, or close the project."
+          }
       )
       builder.setIcon(R.drawable.ic_error)
-      builder.setCancelable(false)
+      builder.setCancelable(canContinueWithLastWorkspace)
   
-      builder.setPositiveButton("Retry") { dialog, _ ->
+      builder.setPositiveButton(if (canContinueWithLastWorkspace) "Retry Sync" else "Retry") { dialog, _ ->
         dialog.dismiss()
         if (!isFinishing && !isDestroyed) {
             initializeProject()
         }
       }
   
-      builder.setNegativeButton("Close Project") { dialog, _ ->
+      builder.setNegativeButton(if (canContinueWithLastWorkspace) "Continue" else "Close Project") { dialog, _ ->
         dialog.dismiss()
-        if (!isFinishing && !isDestroyed) {
+        if (!canContinueWithLastWorkspace && !isFinishing && !isDestroyed) {
             confirmProjectClose()
         }
       }
@@ -637,7 +661,7 @@ fun initializeProject(buildVariants: Map<String, String>) {
         errorBuilder.setTitle("Full Error Details")
         errorBuilder.setMessage(fullErrorDetails)
         errorBuilder.setPositiveButton("OK") { d, _ -> d.dismiss() }
-        errorBuilder.setNeutralButton("Copy Again") { d, _ ->
+        errorBuilder.setNeutralButton("Copy Details") { d, _ ->
           try {
             val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
             val clip = android.content.ClipData.newPlainText("Project Setup Error", fullErrorDetails)
@@ -666,7 +690,13 @@ fun initializeProject(buildVariants: Map<String, String>) {
   protected open fun postProjectInit(isSuccessful: Boolean, failure: TaskExecutionResult.Failure?) {
     val manager = ProjectManagerImpl.getInstance()
     if (!isSuccessful) {
-      val initFailed = getString(string.msg_project_initialization_failed)
+      val preserveExistingWorkspace = hadUsableWorkspaceBeforeInit && manager.hasUsableWorkspace()
+      val initFailed =
+          if (preserveExistingWorkspace) {
+            getString(string.msg_project_sync_failed)
+          } else {
+            getString(string.msg_project_initialization_failed)
+          }
       setStatus(initFailed)
 
       val msg =
@@ -677,17 +707,28 @@ fun initializeProject(buildVariants: Map<String, String>) {
             else -> null
           }?.let { "$initFailed: ${getString(it)}" }
 
-      flashError(msg ?: initFailed)
+      flashError(
+          msg
+              ?: if (preserveExistingWorkspace) {
+                getString(string.msg_project_sync_failed_reusing_model)
+              } else {
+                initFailed
+              }
+      )
 
       editorViewModel.isInitializing = false
-      manager.projectInitialized = false
+      manager.projectInitialized = preserveExistingWorkspace
+      invalidateOptionsMenu()
       return
     }
 
     initialSetup()
     setStatus(getString(string.msg_project_initialized))
     editorViewModel.isInitializing = false
+    editorViewModel.isSyncNeeded = false
     manager.projectInitialized = true
+    hadUsableWorkspaceBeforeInit = manager.hasUsableWorkspace()
+    invalidateOptionsMenu()
 
     if (mFindInProjectDialog?.isShowing == true) {
       mFindInProjectDialog!!.dismiss()
@@ -702,6 +743,28 @@ fun initializeProject(buildVariants: Map<String, String>) {
       buildVariantsViewModel.buildVariants = buildVariants
       buildVariantsViewModel.resetUpdatedSelections()
     }
+  }
+
+  @Subscribe(threadMode = ThreadMode.MAIN)
+  open fun onProjectModelRefreshed(event: ProjectInitializedEvent) {
+    if (isFinishing || isDestroyed || editorViewModel.isInitializing) {
+      return
+    }
+
+    val workspace = event.get(IWorkspace::class.java) ?: return
+    val manager = ProjectManagerImpl.getInstance()
+    if (workspace.getProjectDir().canonicalFile != manager.projectDir.canonicalFile) {
+      return
+    }
+
+    if (!manager.hasUsableWorkspace()) {
+      return
+    }
+
+    setStatus(getString(string.msg_project_initialized))
+    editorViewModel.isSyncNeeded = false
+    manager.projectInitialized = true
+    invalidateOptionsMenu()
   }
 
   protected open fun createFindInProjectDialog(): AlertDialog? {

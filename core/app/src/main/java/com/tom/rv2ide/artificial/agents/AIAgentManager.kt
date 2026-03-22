@@ -37,13 +37,28 @@ import com.tom.rv2ide.artificial.tools.AIToolExecutor
 import java.io.File
 import kotlinx.coroutines.delay
 import com.tom.rv2ide.artificial.dialogs.ProviderSwitchDialog
+import kotlin.math.max
+import kotlin.math.min
 
 class AIAgentManager(private val context: Context) {
 
+    companion object {
+        private const val MAX_SESSION_TURNS = 12
+        private const val MAX_SESSION_TEXT_CHARS = 1200
+        private val LOOP_SENSITIVE_TOOL_NAMES = setOf(
+            "build_project",
+            "run_terminal_command",
+            "replace_file_range"
+        )
+        private val sessionStore = LinkedHashMap<String, MutableList<AgentSessionTurn>>()
+    }
+
+    private val appContext = context.applicationContext
+    private val sessionPersistenceStore = AIAgentSessionStore(appContext)
     private val snippetParser = SnippetParser()
-    private val permissionManager = AIPermissionManager(context)
+    private val permissionManager = AIPermissionManager(appContext)
     private val toolExecutor = AIToolExecutor(
-        context = context,
+        context = appContext,
         projectRootProvider = { currentProjectRoot },
         writeFile = { filePath, content ->
             currentAgent?.writeFile(filePath, content) ?: FileWriteResult.Error("No agent initialized")
@@ -53,11 +68,10 @@ class AIAgentManager(private val context: Context) {
         }
     )
     private var currentProjectRoot: File? = null
-    private var currentProviderId: String = Agents(context).getProvider()
+    private var currentProviderId: String = Agents(appContext).getProvider()
     private var currentAgent: AIAgent? = null
-    private val providerSwitchDialog = ProviderSwitchDialog(context)
-    private val maxToolRounds = 4
-
+    private var restoredPersistentSessionKey: String? = null
+    private val providerSwitchDialog = ProviderSwitchDialog(appContext)
     init {
         Gemini.registerAgent()
         OpenAI.registerAgent()
@@ -98,27 +112,32 @@ class AIAgentManager(private val context: Context) {
         }
         
         currentProviderId = providerId
-        currentAgent = factory.create(context)
+        currentAgent = factory.create(appContext)
+        restoredPersistentSessionKey = null
         android.util.Log.d("AIAgentManager", "Agent created: ${currentAgent != null}")
         
         factory.getApiKey()?.let { apiKey ->
             android.util.Log.d("AIAgentManager", "Initializing agent with API key")
-            currentAgent?.initialize(apiKey, context)
-            currentAgent?.setContext(context)
+            currentAgent?.initialize(apiKey, appContext)
+            currentAgent?.setContext(appContext)
             
             currentProjectRoot?.let { root ->
-                val projectData = ProjectData(context)
+                val projectData = ProjectData(appContext)
                 val projectTree = projectData.showProjectTree(root)
                 currentAgent?.setProjectData(projectTree)
             }
             
             android.util.Log.d("AIAgentManager", "Agent initialized: ${currentAgent?.isInitialized()}")
         }
+
+        restoreCurrentSessionState(force = true)
         
         return currentAgent?.isInitialized() ?: false
     }
 
     fun getCurrentProviderId(): String = currentProviderId
+
+    fun getCurrentSessionStorageKey(): String = currentSessionKey()
     
     fun getCurrentProviderName(): String {
         return currentAgent?.providerName ?: "Unknown"
@@ -143,24 +162,149 @@ class AIAgentManager(private val context: Context) {
         if (!projectRoot.exists()) return false
 
         currentProjectRoot = projectRoot
-        val projectData = ProjectData(context)
+        val projectData = ProjectData(appContext)
         val projectTree = projectData.showProjectTree(projectRoot)
 
         currentAgent?.setProjectData(projectTree)
         permissionManager.addAllowedDirectory(projectRoot.absolutePath)
+        restoredPersistentSessionKey = null
+        restoreCurrentSessionState(force = true)
 
         return true
     }
 
     fun clearConversation() {
+        val sessionKey = currentSessionKey()
         currentAgent?.clearConversation()
+        currentSessionTurns().clear()
+        sessionPersistenceStore.clear(sessionKey)
+        restoredPersistentSessionKey = sessionKey
+    }
+
+    private fun currentSessionTurns(): MutableList<AgentSessionTurn> {
+        val key = currentSessionKey()
+        return sessionStore.getOrPut(key) { mutableListOf() }
+    }
+
+    private fun currentSessionKey(): String {
+        val projectKey = currentProjectRoot?.absolutePath ?: "__global__"
+        return "$projectKey|${buildProviderSessionIdentity()}"
+    }
+
+    private fun buildProviderSessionIdentity(): String {
+        val providerKey = currentAgent?.providerId ?: currentProviderId
+        val fingerprint = currentPersistentConversationAgent()
+            ?.persistentConversationFingerprint()
+            ?.trim()
+            .orEmpty()
+        return if (fingerprint.isBlank()) {
+            providerKey
+        } else {
+            "$providerKey|$fingerprint"
+        }
+    }
+
+    private fun currentNativeToolAgent(): NativeToolCallingAgent? {
+        return currentAgent as? NativeToolCallingAgent
+    }
+
+    private fun currentPersistentConversationAgent(): PersistentConversationAgent? {
+        return currentAgent as? PersistentConversationAgent
+    }
+
+    private fun recordSessionTurn(role: AgentSessionRole, content: String) {
+        val normalized = content.trim()
+        if (normalized.isBlank()) {
+            return
+        }
+
+        val sessionTurns = currentSessionTurns()
+        sessionTurns += AgentSessionTurn(
+            role = role,
+            content = normalized.take(MAX_SESSION_TEXT_CHARS)
+        )
+        while (sessionTurns.size > MAX_SESSION_TURNS) {
+            sessionTurns.removeAt(0)
+        }
+        persistCurrentSessionState()
+    }
+
+    private fun buildSessionContext(): String {
+        val turns = currentSessionTurns().takeLast(MAX_SESSION_TURNS)
+        if (turns.isEmpty()) {
+            return ""
+        }
+
+        return buildString {
+            appendLine("=== SESSION MEMORY ===")
+            appendLine("Continue the same coding task unless the user clearly changes direction.")
+            turns.forEachIndexed { index, turn ->
+                append(index + 1)
+                append(". ")
+                append(turn.role.label)
+                append(": ")
+                appendLine(turn.content)
+            }
+        }.trim()
+    }
+
+    private fun summarizeAssistantResponse(
+        response: String,
+        summary: ModificationSummary? = null
+    ): String {
+        if (response.contains("FILE_TO_MODIFY:")) {
+            return buildString {
+                append("Prepared file changes")
+                summary?.let {
+                    append(": ${it.successfulFiles}/${it.totalFiles} files applied")
+                    if (it.failedFiles > 0) {
+                        append(", ${it.failedFiles} failed")
+                    }
+                }
+            }
+        }
+
+        return response.trim().take(MAX_SESSION_TEXT_CHARS)
+    }
+
+    private fun summarizeToolResult(toolResult: AIToolExecutionResult): String {
+        return buildString {
+            append(toolResult.toolName)
+            append(": ")
+            append(toolResult.summary)
+            toolResult.exitCode?.let { append(" (exit=$it)") }
+            toolResult.executedCommand?.takeIf { it.isNotBlank() }?.let {
+                append(" | cmd=")
+                append(it.take(240))
+            }
+        }.take(MAX_SESSION_TEXT_CHARS)
+    }
+
+    private fun summarizeModificationResults(results: List<ModificationResult>): String {
+        if (results.isEmpty()) {
+            return ""
+        }
+
+        val fileSummary = results.joinToString(", ") { result ->
+            val action = if (result.isNewFile) "created" else "updated"
+            "${File(result.filePath).name} ($action)"
+        }
+        return "Changed files: $fileSummary".take(MAX_SESSION_TEXT_CHARS)
+    }
+
+    private fun isNonRetryableToolError(error: Throwable): Boolean {
+        return error is ToolCallLoopException ||
+            error is ToolProtocolException ||
+            error is ToolExecutionDisabledException
     }
 
     suspend fun executeRequest(userRequest: String, callback: AIAgentCallback) {
         var success = false
         var providerSwitched = false
 
+        restoreCurrentSessionState()
         currentAgent?.resetAttemptCount()
+        recordSessionTurn(AgentSessionRole.USER, userRequest)
         callback.onProcessing("Analyzing your request...")
 
         while (!success && (currentAgent?.canRetry() == true)) {
@@ -190,6 +334,8 @@ class AIAgentManager(private val context: Context) {
                             if (allSuccessful) {
                                 val results = buildModificationResults(modifications)
                                 val summary = createSummary(results)
+                                recordSessionTurn(AgentSessionRole.ASSISTANT, summarizeAssistantResponse(response, summary))
+                                recordSessionTurn(AgentSessionRole.CHANGE, summarizeModificationResults(results))
                                 callback.onSuccess(response, results, summary)
                                 success = true
                             } else {
@@ -203,6 +349,7 @@ class AIAgentManager(private val context: Context) {
                             delay(1500)
                         } else {
                             val summary = ModificationSummary(0, 0, 0, 0, 0, emptyList())
+                            recordSessionTurn(AgentSessionRole.ASSISTANT, summarizeAssistantResponse(response, summary))
                             callback.onTextResponse(response, summary)
                             success = true
                         }
@@ -247,7 +394,11 @@ class AIAgentManager(private val context: Context) {
                               callback.onError("PROVIDER_SWITCH_REQUIRED::$errorDisplay")
                               success = true
                           }
-                      } else if ((currentAgent?.canRetry() == true) && !providerSwitched) {
+                      } else if (
+                          (currentAgent?.canRetry() == true) &&
+                          !providerSwitched &&
+                          !isNonRetryableToolError(error)
+                      ) {
                           callback.onRetry(
                               currentAgent?.getCurrentAttemptCount() ?: 0,
                               "Error: ${error.message?.take(50) ?: "Unknown error"}. Retrying..."
@@ -264,7 +415,7 @@ class AIAgentManager(private val context: Context) {
             } catch (e: Exception) {
                 android.util.Log.e("AIAgentManager", "Exception occurred: ${e.message}", e)
                 
-                if (currentAgent?.canRetry() == true) {
+                if ((currentAgent?.canRetry() == true) && !isNonRetryableToolError(e)) {
                     callback.onRetry(
                         currentAgent?.getCurrentAttemptCount() ?: 0,
                         "Exception: ${e.message?.take(50) ?: "Unknown"}. Trying again..."
@@ -290,6 +441,62 @@ class AIAgentManager(private val context: Context) {
     private fun getAlternativeProvider(): String? {
         val availableProviders = AIAgentRegistry.getAvailableProviders()
         return availableProviders.firstOrNull { it != currentProviderId }
+    }
+
+    private fun restoreCurrentSessionState(force: Boolean = false) {
+        val sessionKey = currentSessionKey()
+        if (!force && restoredPersistentSessionKey == sessionKey) {
+            return
+        }
+
+        val persisted = sessionPersistenceStore.load(sessionKey)
+        val restoredTurns = when {
+            persisted != null -> persisted.sessionTurns.mapNotNull(::restoreAgentSessionTurn)
+            sessionStore.containsKey(sessionKey) -> sessionStore[sessionKey].orEmpty()
+            else -> emptyList()
+        }
+        sessionStore[sessionKey] = restoredTurns.toMutableList()
+
+        currentPersistentConversationAgent()?.let { agent ->
+            val serializedState = persisted?.agentState?.trim().orEmpty()
+            if (serializedState.isNotBlank()) {
+                runCatching {
+                    agent.importPersistentConversationState(serializedState)
+                }.onFailure { error ->
+                    android.util.Log.w(
+                        "AIAgentManager",
+                        "Failed to restore persistent conversation state for $sessionKey",
+                        error
+                    )
+                    agent.clearConversation()
+                    sessionStore[sessionKey] = mutableListOf()
+                    sessionPersistenceStore.clear(sessionKey)
+                }
+            } else if (force || restoredPersistentSessionKey != sessionKey) {
+                agent.clearConversation()
+            }
+        }
+
+        restoredPersistentSessionKey = sessionKey
+    }
+
+    private fun persistCurrentSessionState() {
+        val sessionKey = currentSessionKey()
+        val turns = currentSessionTurns().map { turn ->
+            PersistedAgentSessionTurn(
+                role = turn.role.label,
+                content = turn.content
+            )
+        }
+        val agentState = currentPersistentConversationAgent()
+            ?.exportPersistentConversationState()
+            ?.takeIf { it.isNotBlank() }
+        sessionPersistenceStore.save(
+            sessionKey = sessionKey,
+            sessionTurns = turns,
+            agentState = agentState
+        )
+        restoredPersistentSessionKey = sessionKey
     }
 
     private suspend fun processModifications(
@@ -377,70 +584,158 @@ class AIAgentManager(private val context: Context) {
         userRequest: String,
         callback: AIAgentCallback
     ): Result<ResolvedAgentResponse> {
+        currentNativeToolAgent()?.let { nativeAgent ->
+            return resolveNativeToolAgentResponse(
+                nativeAgent = nativeAgent,
+                userRequest = userRequest,
+                callback = callback
+            )
+        }
+
         val toolResults = mutableListOf<AIToolExecutionResult>()
         val toolModifications = mutableListOf<BaseFileModification>()
+        val toolSignatureHistory = mutableListOf<String>()
+        val toolOutcomeHistory = mutableListOf<ToolExecutionFingerprint>()
+        var successfulFileChangeCount = 0
 
-        repeat(maxToolRounds + 1) { round ->
+        while (true) {
             val context = buildToolContext(toolResults)
-            val result = currentAgent?.generateCode(
+            val previewBuffer = StringBuilder()
+            var assistantPreviewStarted = false
+            var assistantPreviewSuppressed = false
+
+            val result = currentAgent?.generateCodeStreaming(
                 prompt = userRequest,
                 context = context,
                 language = "kotlin",
-                projectStructure = null
+                projectStructure = null,
+                listener = object : AIAgentStreamListener {
+                    override fun onTextDelta(delta: String) {
+                        if (delta.isEmpty()) {
+                            return
+                        }
+
+                        previewBuffer.append(delta)
+                        if (assistantPreviewSuppressed) {
+                            return
+                        }
+
+                        if (!assistantPreviewStarted) {
+                            val decision = resolveAssistantPreviewDecision(previewBuffer.toString())
+                            when (decision) {
+                                AssistantPreviewDecision.WAIT -> return
+                                AssistantPreviewDecision.SUPPRESS -> {
+                                    assistantPreviewSuppressed = true
+                                    return
+                                }
+                                AssistantPreviewDecision.SHOW -> {
+                                    assistantPreviewStarted = true
+                                    callback.onAssistantTextStarted()
+                                    callback.onAssistantTextDelta(previewBuffer.toString())
+                                    previewBuffer.clear()
+                                    return
+                                }
+                            }
+                        }
+
+                        callback.onAssistantTextDelta(delta)
+                    }
+                }
             ) ?: Result.failure(Exception("No agent initialized"))
 
             result.exceptionOrNull()?.let { return Result.failure(it) }
             val response = result.getOrNull() ?: return Result.failure(Exception("Empty AI response"))
+
+            if (!assistantPreviewStarted && !assistantPreviewSuppressed) {
+                when (resolveAssistantPreviewDecision(response, isFinalResponse = true)) {
+                    AssistantPreviewDecision.SHOW -> {
+                        callback.onAssistantTextStarted()
+                        callback.onAssistantTextDelta(response)
+                        assistantPreviewStarted = true
+                    }
+                    AssistantPreviewDecision.SUPPRESS,
+                    AssistantPreviewDecision.WAIT -> Unit
+                }
+            }
+            if (assistantPreviewStarted) {
+                callback.onAssistantTextFinished(response)
+            }
 
             val toolCalls = AIToolCallParser.parseToolCalls(response)
             if (toolCalls.isEmpty()) {
                 return Result.success(
                     ResolvedAgentResponse(
                         response = response,
-                        toolModifications = toolModifications.toList()
+                        toolModifications = toolModifications.toList(),
+                        toolResults = toolResults.toList()
                     )
                 )
             }
 
-            if (round >= maxToolRounds) {
-                return Result.failure(
-                    IllegalStateException("Tool call limit exceeded. The agent kept requesting tools without producing a final answer.")
-                )
-            }
-
             if (!permissionManager.isToolExecutionEnabled()) {
-                toolResults += AIToolExecutionResult(
-                    toolName = "tool_permission",
-                    success = false,
-                    summary = "Tool execution is disabled",
-                    output = "Enable AI Tool Execution in AI Preferences to allow builds, Termux package installs, and safe terminal commands."
+                return Result.failure(
+                    ToolExecutionDisabledException(
+                        "AI requested a tool, but AI Tool Execution is disabled. Enable it in AI preferences first."
+                    )
                 )
-                callback.onProcessing("AI requested a tool, but AI Tool Execution is disabled in settings.")
-                return@repeat
             }
 
             if (response.contains("FILE_TO_MODIFY:")) {
-                toolResults += AIToolExecutionResult(
-                    toolName = "tool_protocol",
-                    success = false,
-                    summary = "The model mixed TOOL_CALL and FILE_TO_MODIFY in a single response.",
-                    output = "Return only TOOL_CALL blocks when a tool is needed. After tool results are available, send FILE_TO_MODIFY blocks or plain text in a later response."
+                return Result.failure(
+                    ToolProtocolException(
+                        "The model mixed TOOL_CALL and FILE_TO_MODIFY in one response. It must finish tool requests before sending edits."
+                    )
                 )
-                return@repeat
             }
+
+            val toolSignature = buildToolCallSignature(toolCalls)
+            detectToolLoop(toolSignatureHistory, toolSignature)?.let { loopMessage ->
+                return Result.success(
+                    finalizeToolRunWithCurrentContext(
+                        userRequest = userRequest,
+                        callback = callback,
+                        toolResults = toolResults,
+                        toolModifications = toolModifications,
+                        loopReason = loopMessage
+                    )
+                )
+            }
+            toolSignatureHistory += toolSignature
 
             callback.onProcessing("Executing ${toolCalls.size} tool request(s)...")
 
             toolCalls.forEach { toolCall ->
                 callback.onToolCallStarted(toolCall)
                 callback.onProcessing(formatToolStartMessage(toolCall))
-                val toolResult = toolExecutor.execute(toolCall)
+                val toolResult = toolExecutor.execute(toolCall) { chunk ->
+                    callback.onToolCallOutput(toolCall, chunk)
+                }
+                detectToolResultLoop(
+                    toolOutcomeHistory = toolOutcomeHistory,
+                    toolResult = toolResult,
+                    successfulFileChangeCount = successfulFileChangeCount
+                )?.let { loopMessage ->
+                    return Result.success(
+                        finalizeToolRunWithCurrentContext(
+                            userRequest = userRequest,
+                            callback = callback,
+                            toolResults = toolResults + toolResult,
+                            toolModifications = toolModifications,
+                            loopReason = loopMessage
+                        )
+                    )
+                }
                 toolResults += toolResult
+                toolOutcomeHistory += buildToolExecutionFingerprint(toolResult, successfulFileChangeCount)
+                recordSessionTurn(AgentSessionRole.TOOL, summarizeToolResult(toolResult))
                 toolResult.fileChange?.let { fileChange ->
                     val fileName = File(fileChange.filePath).name
                     callback.onFileModifying(fileChange.filePath, fileName)
                     val writeSuccessful = fileChange.writeResult is FileWriteResult.Success
                     callback.onFileModified(fileChange.filePath, fileName, writeSuccessful)
+                    if (writeSuccessful) {
+                        successfulFileChangeCount += 1
+                    }
                     toolModifications += BaseFileModification(
                         filePath = fileChange.filePath,
                         content = fileChange.newContent,
@@ -452,12 +747,502 @@ class AIAgentManager(private val context: Context) {
                 callback.onProcessing(formatToolEndMessage(toolResult))
             }
         }
+    }
 
-        return Result.failure(IllegalStateException("Tool call loop terminated unexpectedly"))
+    private suspend fun resolveNativeToolAgentResponse(
+        nativeAgent: NativeToolCallingAgent,
+        userRequest: String,
+        callback: AIAgentCallback
+    ): Result<ResolvedAgentResponse> {
+        val toolResults = mutableListOf<AIToolExecutionResult>()
+        val toolModifications = mutableListOf<BaseFileModification>()
+        val toolSignatureHistory = mutableListOf<String>()
+        val toolOutcomeHistory = mutableListOf<ToolExecutionFingerprint>()
+        var successfulFileChangeCount = 0
+        var pendingToolResults = emptyList<NativeToolResult>()
+
+        var round = 0
+        try {
+            while (true) {
+                val previewBuffer = StringBuilder()
+                var assistantPreviewStarted = false
+                var assistantPreviewSuppressed = false
+
+                val result = if (round == 0) {
+                    nativeAgent.startToolSessionTurn(
+                        prompt = userRequest,
+                        toolExecutionEnabled = permissionManager.isToolExecutionEnabled(),
+                        listener = object : AIAgentStreamListener {
+                            override fun onTextDelta(delta: String) {
+                                if (delta.isEmpty()) {
+                                    return
+                                }
+
+                                previewBuffer.append(delta)
+                                if (assistantPreviewSuppressed) {
+                                    return
+                                }
+
+                                if (!assistantPreviewStarted) {
+                                    val decision = resolveNativeAssistantPreviewDecision(previewBuffer.toString())
+                                    when (decision) {
+                                        AssistantPreviewDecision.WAIT -> return
+                                        AssistantPreviewDecision.SUPPRESS -> {
+                                            assistantPreviewSuppressed = true
+                                            return
+                                        }
+                                        AssistantPreviewDecision.SHOW -> {
+                                            assistantPreviewStarted = true
+                                            callback.onAssistantTextStarted()
+                                            callback.onAssistantTextDelta(previewBuffer.toString())
+                                            previewBuffer.clear()
+                                            return
+                                        }
+                                    }
+                                }
+
+                                callback.onAssistantTextDelta(delta)
+                            }
+                        }
+                    )
+                } else {
+                    nativeAgent.continueToolSessionTurn(
+                        toolResults = pendingToolResults,
+                        toolExecutionEnabled = permissionManager.isToolExecutionEnabled(),
+                        listener = object : AIAgentStreamListener {
+                            override fun onTextDelta(delta: String) {
+                                if (delta.isEmpty()) {
+                                    return
+                                }
+
+                                previewBuffer.append(delta)
+                                if (assistantPreviewSuppressed) {
+                                    return
+                                }
+
+                                if (!assistantPreviewStarted) {
+                                    val decision = resolveNativeAssistantPreviewDecision(previewBuffer.toString())
+                                    when (decision) {
+                                        AssistantPreviewDecision.WAIT -> return
+                                        AssistantPreviewDecision.SUPPRESS -> {
+                                            assistantPreviewSuppressed = true
+                                            return
+                                        }
+                                        AssistantPreviewDecision.SHOW -> {
+                                            assistantPreviewStarted = true
+                                            callback.onAssistantTextStarted()
+                                            callback.onAssistantTextDelta(previewBuffer.toString())
+                                            previewBuffer.clear()
+                                            return
+                                        }
+                                    }
+                                }
+
+                                callback.onAssistantTextDelta(delta)
+                            }
+                        }
+                    )
+                }
+
+                result.exceptionOrNull()?.let {
+                    nativeAgent.abortActiveToolSessionTurn()
+                    return Result.failure(it)
+                }
+
+                val response = result.getOrNull()
+                    ?: run {
+                        nativeAgent.abortActiveToolSessionTurn()
+                        return Result.failure(Exception("Empty AI response"))
+                    }
+
+                if (!assistantPreviewStarted && !assistantPreviewSuppressed) {
+                    when (resolveNativeAssistantPreviewDecision(response.assistantText, isFinalResponse = true)) {
+                        AssistantPreviewDecision.SHOW -> {
+                            callback.onAssistantTextStarted()
+                            callback.onAssistantTextDelta(response.assistantText)
+                            assistantPreviewStarted = true
+                        }
+                        AssistantPreviewDecision.SUPPRESS,
+                        AssistantPreviewDecision.WAIT -> Unit
+                    }
+                }
+                if (assistantPreviewStarted) {
+                    callback.onAssistantTextFinished(response.assistantText)
+                }
+
+                val toolCalls = response.toolCalls
+                if (toolCalls.isEmpty()) {
+                    return Result.success(
+                        ResolvedAgentResponse(
+                            response = response.assistantText,
+                            toolModifications = toolModifications.toList(),
+                            toolResults = toolResults.toList()
+                        )
+                    )
+                }
+
+                if (!permissionManager.isToolExecutionEnabled()) {
+                    nativeAgent.abortActiveToolSessionTurn()
+                    return Result.failure(
+                        ToolExecutionDisabledException(
+                            "AI requested a tool, but AI Tool Execution is disabled. Enable it in AI preferences first."
+                        )
+                    )
+                }
+
+                val toolSignature = buildToolCallSignature(toolCalls)
+                detectToolLoop(toolSignatureHistory, toolSignature)?.let { loopMessage ->
+                    nativeAgent.abortActiveToolSessionTurn()
+                    return Result.success(
+                        finalizeToolRunWithCurrentContext(
+                            userRequest = userRequest,
+                            callback = callback,
+                            toolResults = toolResults,
+                            toolModifications = toolModifications,
+                            loopReason = loopMessage
+                        )
+                    )
+                }
+                toolSignatureHistory += toolSignature
+
+                callback.onProcessing("Executing ${toolCalls.size} tool request(s)...")
+
+                val roundToolResults = mutableListOf<NativeToolResult>()
+                toolCalls.forEachIndexed { index, toolCall ->
+                    callback.onToolCallStarted(toolCall)
+                    callback.onProcessing(formatToolStartMessage(toolCall))
+                    val toolResult = toolExecutor.execute(toolCall) { chunk ->
+                        callback.onToolCallOutput(toolCall, chunk)
+                    }
+                    detectToolResultLoop(
+                        toolOutcomeHistory = toolOutcomeHistory,
+                        toolResult = toolResult,
+                        successfulFileChangeCount = successfulFileChangeCount
+                    )?.let { loopMessage ->
+                        nativeAgent.abortActiveToolSessionTurn()
+                        return Result.success(
+                            finalizeToolRunWithCurrentContext(
+                                userRequest = userRequest,
+                                callback = callback,
+                                toolResults = toolResults + toolResult,
+                                toolModifications = toolModifications,
+                                loopReason = loopMessage
+                            )
+                        )
+                    }
+                    toolResults += toolResult
+                    toolOutcomeHistory += buildToolExecutionFingerprint(toolResult, successfulFileChangeCount)
+                    recordSessionTurn(AgentSessionRole.TOOL, summarizeToolResult(toolResult))
+                    toolResult.fileChange?.let { fileChange ->
+                        val fileName = File(fileChange.filePath).name
+                        callback.onFileModifying(fileChange.filePath, fileName)
+                        val writeSuccessful = fileChange.writeResult is FileWriteResult.Success
+                        callback.onFileModified(fileChange.filePath, fileName, writeSuccessful)
+                        if (writeSuccessful) {
+                            successfulFileChangeCount += 1
+                        }
+                        toolModifications += BaseFileModification(
+                            filePath = fileChange.filePath,
+                            content = fileChange.newContent,
+                            writeResult = fileChange.writeResult,
+                            previousContent = fileChange.previousContent
+                        )
+                    }
+                    callback.onToolCallCompleted(toolResult)
+                    callback.onProcessing(formatToolEndMessage(toolResult))
+                    roundToolResults += NativeToolResult(
+                        toolCallId = toolCall.callId ?: "native_call_${round + 1}_${index + 1}",
+                        toolName = toolCall.name,
+                        output = toolResult.toToolResultPayload(),
+                        isError = !toolResult.success
+                    )
+                }
+                pendingToolResults = roundToolResults.toList()
+                round += 1
+            }
+        } catch (error: Exception) {
+            nativeAgent.abortActiveToolSessionTurn()
+            return Result.failure(error)
+        }
+    }
+
+    private fun buildToolCallSignature(toolCalls: List<AIToolCall>): String {
+        return toolCalls.joinToString(separator = "||") { toolCall ->
+            val normalizedArgs = toolCall.arguments.entries
+                .sortedBy { it.key }
+                .joinToString(separator = "&") { (key, value) ->
+                    "$key=${normalizeToolArgument(value)}"
+                }
+            "${toolCall.name.lowercase()}::$normalizedArgs"
+        }
+    }
+
+    private fun normalizeToolArgument(value: String): String {
+        return value.trim().replace(Regex("\\s+"), " ")
+    }
+
+    private fun detectToolLoop(
+        toolSignatureHistory: List<String>,
+        nextSignature: String
+    ): String? {
+        val consecutiveRepeatCount = toolSignatureHistory
+            .asReversed()
+            .takeWhile { it == nextSignature }
+            .size
+        if (consecutiveRepeatCount >= 2) {
+            return "The model repeated the same tool request three times in a row. Stopping to avoid a tool loop."
+        }
+
+        if (toolSignatureHistory.count { it == nextSignature } >= 2) {
+            return "The model requested the same tool sequence three times in one run. Stopping to avoid a loop."
+        }
+
+        val extendedHistory = toolSignatureHistory + nextSignature
+        if (extendedHistory.size >= 4) {
+            val lastFour = extendedHistory.takeLast(4)
+            if (lastFour[0] == lastFour[2] && lastFour[1] == lastFour[3]) {
+                return "The model entered a repeating two-step tool loop. Stopping before it keeps alternating the same requests."
+            }
+        }
+
+        return null
+    }
+
+    private fun detectToolResultLoop(
+        toolOutcomeHistory: List<ToolExecutionFingerprint>,
+        toolResult: AIToolExecutionResult,
+        successfulFileChangeCount: Int
+    ): String? {
+        val current = buildToolExecutionFingerprint(toolResult, successfulFileChangeCount)
+        if (toolResult.blockedBySafetyPolicy) {
+            val blockedRepeatCount = toolOutcomeHistory.count { previous ->
+                !previous.success &&
+                    previous.toolName == current.toolName &&
+                    previous.normalizedCommand == current.normalizedCommand &&
+                    previous.failureFingerprint == current.failureFingerprint &&
+                    previous.successfulFileChangeCount == successfulFileChangeCount
+            }
+            if (blockedRepeatCount >= 2) {
+                val commandPreview = current.normalizedCommand
+                    .takeIf { it.isNotBlank() }
+                    ?.take(160)
+                    ?.let { " [$it]" }
+                    .orEmpty()
+                return "The model kept retrying the same safety-blocked command$commandPreview without changing approach. Stopping before it burns more tool rounds."
+            }
+            return null
+        }
+
+        if (!current.success && current.toolName in LOOP_SENSITIVE_TOOL_NAMES) {
+            val lastMatchingFailure = toolOutcomeHistory.lastOrNull { previous ->
+                !previous.success &&
+                    previous.toolName == current.toolName &&
+                    previous.normalizedCommand == current.normalizedCommand &&
+                    previous.failureFingerprint == current.failureFingerprint
+            }
+            if (lastMatchingFailure != null &&
+                lastMatchingFailure.successfulFileChangeCount == successfulFileChangeCount
+            ) {
+                val toolLabel = when (current.toolName) {
+                    "build_project" -> "build"
+                    "run_terminal_command" -> "command"
+                    else -> "tool"
+                }
+                val commandPreview = current.normalizedCommand
+                    .takeIf { it.isNotBlank() }
+                    ?.take(160)
+                    ?.let { " [$it]" }
+                    .orEmpty()
+                return "The model repeated the same failing $toolLabel$commandPreview without changing any files. Stopping before it loops on the same failure again."
+            }
+        }
+
+        if (current.toolName == "read_file_range" &&
+            current.targetFile != null &&
+            current.startLine != null &&
+            current.endLine != null
+        ) {
+            val overlappingReadCount = toolOutcomeHistory.count { previous ->
+                previous.toolName == "read_file_range" &&
+                    previous.successfulFileChangeCount == successfulFileChangeCount &&
+                    previous.targetFile == current.targetFile &&
+                    previous.startLine != null &&
+                    previous.endLine != null &&
+                    rangesOverlapStrongly(
+                        startA = previous.startLine,
+                        endA = previous.endLine,
+                        startB = current.startLine,
+                        endB = current.endLine
+                    )
+            }
+            if (overlappingReadCount >= 2) {
+                val fileName = File(current.targetFile).name
+                return "The model kept rereading overlapping ranges in $fileName without making changes. Stopping before it burns more tool rounds on the same file."
+            }
+        }
+
+        return null
+    }
+
+    private fun buildToolExecutionFingerprint(
+        toolResult: AIToolExecutionResult,
+        successfulFileChangeCount: Int
+    ): ToolExecutionFingerprint {
+        val normalizedOutput = toolResult.output.replace("\r\n", "\n")
+        val targetFile = extractToolField(normalizedOutput, "FILE")
+            ?: toolResult.fileChange?.filePath
+        val rangeText = extractToolField(normalizedOutput, "RANGE")
+        val (startLine, endLine) = parseLineRange(rangeText)
+
+        return ToolExecutionFingerprint(
+            toolName = toolResult.toolName.lowercase(),
+            success = toolResult.success,
+            normalizedCommand = normalizeToolCommand(toolResult),
+            failureFingerprint = buildFailureFingerprint(toolResult, normalizedOutput),
+            targetFile = targetFile,
+            startLine = startLine,
+            endLine = endLine,
+            successfulFileChangeCount = successfulFileChangeCount
+        )
+    }
+
+    private fun normalizeToolCommand(toolResult: AIToolExecutionResult): String {
+        val normalizedSummary = toolResult.summary.trim().replace(Regex("\\s+"), " ")
+        val normalizedCommand = toolResult.executedCommand
+            ?.trim()
+            ?.replace(Regex("\\s+"), " ")
+            .orEmpty()
+        if (normalizedCommand.isBlank()) {
+            return normalizedSummary
+        }
+
+        return when (toolResult.toolName.lowercase()) {
+            "build_project" -> normalizedCommand
+                .split(' ')
+                .filterNot {
+                    it in setOf("--console=plain", "--no-daemon", "--info", "--stacktrace")
+                }
+                .joinToString(" ")
+            else -> normalizedCommand
+        }
+    }
+
+    private fun buildFailureFingerprint(
+        toolResult: AIToolExecutionResult,
+        normalizedOutput: String
+    ): String {
+        if (toolResult.success) {
+            return ""
+        }
+
+        if (toolResult.blockedBySafetyPolicy) {
+            val reason = toolResult.summary
+                .replace(Regex("\\s+"), " ")
+                .trim()
+            return "BLOCKED:$reason"
+        }
+
+        val lines = normalizedOutput.lines()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+        val errorLine = lines.firstOrNull { line ->
+            line.startsWith("Execution failed for task") ||
+                line.startsWith("e:") ||
+                line.startsWith("error:") ||
+                line.contains("FAILURE:", ignoreCase = true) ||
+                line.contains("BUILD FAILED", ignoreCase = true) ||
+                line.contains("Exception", ignoreCase = true)
+        }
+        val fallbackTail = lines.takeLast(3).joinToString(" | ")
+
+        return (errorLine ?: fallbackTail.ifBlank { toolResult.summary })
+            .replace(Regex("\\s+"), " ")
+            .take(320)
+    }
+
+    private fun extractToolField(output: String, fieldName: String): String? {
+        val match = Regex(
+            pattern = "(?m)^${Regex.escape(fieldName)}:\\s*(.+)$"
+        ).find(output) ?: return null
+        return match.groupValues.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun parseLineRange(rawRange: String?): Pair<Int?, Int?> {
+        val match = rawRange
+            ?.trim()
+            ?.let { Regex("^(\\d+)-(\\d+)$").matchEntire(it) }
+            ?: return null to null
+        return match.groupValues[1].toIntOrNull() to match.groupValues[2].toIntOrNull()
+    }
+
+    private fun rangesOverlapStrongly(
+        startA: Int,
+        endA: Int,
+        startB: Int,
+        endB: Int
+    ): Boolean {
+        val overlapStart = max(startA, startB)
+        val overlapEnd = min(endA, endB)
+        if (overlapEnd < overlapStart) {
+            return false
+        }
+        val overlapSize = overlapEnd - overlapStart + 1
+        val smallerRangeSize = min(endA - startA + 1, endB - startB + 1)
+        return overlapSize * 100 >= smallerRangeSize * 70
+    }
+
+    private fun resolveAssistantPreviewDecision(
+        content: String,
+        isFinalResponse: Boolean = false
+    ): AssistantPreviewDecision {
+        val trimmedStart = content.trimStart()
+        if (trimmedStart.startsWith("TOOL_CALL:") || trimmedStart.startsWith("FILE_TO_MODIFY:")) {
+            return AssistantPreviewDecision.SUPPRESS
+        }
+
+        if (isFinalResponse) {
+            return if (trimmedStart.isBlank()) {
+                AssistantPreviewDecision.SUPPRESS
+            } else {
+                AssistantPreviewDecision.SHOW
+            }
+        }
+
+        if (trimmedStart.isBlank()) {
+            return AssistantPreviewDecision.WAIT
+        }
+
+        return if (trimmedStart.length >= 24 || trimmedStart.contains('\n')) {
+            AssistantPreviewDecision.SHOW
+        } else {
+            AssistantPreviewDecision.WAIT
+        }
+    }
+
+    private fun resolveNativeAssistantPreviewDecision(
+        content: String,
+        isFinalResponse: Boolean = false
+    ): AssistantPreviewDecision {
+        val trimmedStart = content.trimStart()
+
+        if (isFinalResponse) {
+            return if (trimmedStart.isBlank()) {
+                AssistantPreviewDecision.SUPPRESS
+            } else {
+                AssistantPreviewDecision.SHOW
+            }
+        }
+
+        if (trimmedStart.isBlank()) {
+            return AssistantPreviewDecision.WAIT
+        }
+
+        return AssistantPreviewDecision.SHOW
     }
 
     private fun buildToolContext(toolResults: List<AIToolExecutionResult>): String {
         val toolExecutionEnabled = permissionManager.isToolExecutionEnabled()
+        val sessionContext = buildSessionContext()
 
         return buildString {
             appendLine("=== AI TOOLING ===")
@@ -504,9 +1289,13 @@ class AIAgentManager(private val context: Context) {
                 appendLine("- Prefer read_file_range and inspect only the relevant 50-200 lines, not an entire file, unless absolutely necessary.")
                 appendLine("- Prefer replace_file_range for focused edits instead of rewriting a whole file.")
                 appendLine("- Prefer build_project for any Gradle wrapper build or compile command.")
-                appendLine("- Use run_terminal_command for safe non-build terminal commands such as pkg/apt/git/rg/ls/find/cat/head/tail/grep/python/cmake.")
+                appendLine("- Use run_terminal_command for safe non-build terminal commands such as pkg/apt/git/rg/ls/find/cat/head/tail/grep/python/cmake/curl/wget/stat/tree/du/df/ps/cp/mkdir/touch.")
                 appendLine("- Use non-interactive flags when possible, for example pkg install -y.")
                 appendLine("- Do not request dangerous commands, shell operators, pipes, redirects, or command chaining.")
+                appendLine("- Never use 'cd ... && ...'. Put the directory in WORKDIR and keep COMMAND to a single command.")
+                appendLine("- If a command is blocked by safety policy or not in the allowlist, do not retry it verbatim. Switch to another supported command or a different tool.")
+                appendLine("- If you want to run gradle/gradlew, prefer build_project. Direct gradlew terminal commands may be rerouted as builds.")
+                appendLine("- If the same build or command fails twice without any file changes, stop and explain the blocker instead of retrying the same failure.")
                 appendLine("- After tool results are returned, either request another tool or produce FILE_TO_MODIFY blocks / final text.")
             } else {
                 appendLine("Tool execution is disabled in settings.")
@@ -517,12 +1306,266 @@ class AIAgentManager(private val context: Context) {
             if (toolResults.isNotEmpty()) {
                 appendLine()
                 appendLine("=== TOOL RESULTS ===")
-                toolResults.takeLast(4).forEachIndexed { index, result ->
+                toolResults.takeLast(8).forEachIndexed { index, result ->
                     appendLine(result.toContextBlock(index + 1))
                     appendLine()
                 }
             }
+
+            if (sessionContext.isNotBlank()) {
+                appendLine()
+                appendLine(sessionContext)
+            }
         }.trim()
+    }
+
+    private suspend fun finalizeToolRunWithCurrentContext(
+        userRequest: String,
+        callback: AIAgentCallback,
+        toolResults: List<AIToolExecutionResult>,
+        toolModifications: List<BaseFileModification>,
+        loopReason: String
+    ): ResolvedAgentResponse {
+        callback.onProcessing("Stopping repeated tool calls and producing a final answer from the current context...")
+
+        val forcedResponse = attemptForcedFinalAnswer(
+            userRequest = userRequest,
+            callback = callback,
+            toolResults = toolResults,
+            toolModifications = toolModifications,
+            loopReason = loopReason
+        )?.trim()
+
+        val finalResponse = forcedResponse
+            ?.takeIf { it.isNotBlank() && !containsProtocolBlocks(it) }
+            ?: buildForcedFinalFallback(
+                toolResults = toolResults,
+                toolModifications = toolModifications,
+                loopReason = loopReason
+            )
+
+        return ResolvedAgentResponse(
+            response = finalResponse,
+            toolModifications = toolModifications.toList(),
+            toolResults = toolResults.toList()
+        )
+    }
+
+    private suspend fun attemptForcedFinalAnswer(
+        userRequest: String,
+        callback: AIAgentCallback,
+        toolResults: List<AIToolExecutionResult>,
+        toolModifications: List<BaseFileModification>,
+        loopReason: String
+    ): String? {
+        val previewBuffer = StringBuilder()
+        var assistantPreviewStarted = false
+        var assistantPreviewSuppressed = false
+
+        val result = currentAgent?.generateCodeStreaming(
+            prompt = buildForcedFinalizationPrompt(userRequest, loopReason),
+            context = buildForcedFinalizationContext(
+                toolResults = toolResults,
+                toolModifications = toolModifications,
+                loopReason = loopReason
+            ),
+            language = "kotlin",
+            projectStructure = null,
+            listener = object : AIAgentStreamListener {
+                override fun onTextDelta(delta: String) {
+                    if (delta.isEmpty()) {
+                        return
+                    }
+
+                    previewBuffer.append(delta)
+                    if (assistantPreviewSuppressed) {
+                        return
+                    }
+
+                    if (!assistantPreviewStarted) {
+                        when (resolveAssistantPreviewDecision(previewBuffer.toString())) {
+                            AssistantPreviewDecision.WAIT -> return
+                            AssistantPreviewDecision.SUPPRESS -> {
+                                assistantPreviewSuppressed = true
+                                return
+                            }
+                            AssistantPreviewDecision.SHOW -> {
+                                assistantPreviewStarted = true
+                                callback.onAssistantTextStarted()
+                                callback.onAssistantTextDelta(previewBuffer.toString())
+                                previewBuffer.clear()
+                                return
+                            }
+                        }
+                    }
+
+                    callback.onAssistantTextDelta(delta)
+                }
+            }
+        ) ?: return null
+
+        val response = result.getOrNull()?.trim().orEmpty()
+        if (response.isBlank()) {
+            return null
+        }
+
+        if (!assistantPreviewStarted && !assistantPreviewSuppressed) {
+            when (resolveAssistantPreviewDecision(response, isFinalResponse = true)) {
+                AssistantPreviewDecision.SHOW -> {
+                    callback.onAssistantTextStarted()
+                    callback.onAssistantTextDelta(response)
+                    assistantPreviewStarted = true
+                }
+                AssistantPreviewDecision.SUPPRESS,
+                AssistantPreviewDecision.WAIT -> Unit
+            }
+        }
+
+        if (assistantPreviewStarted) {
+            callback.onAssistantTextFinished(response)
+        }
+
+        return response
+    }
+
+    private fun buildForcedFinalizationPrompt(
+        userRequest: String,
+        loopReason: String
+    ): String {
+        return buildString {
+            appendLine("The tool-assisted run for this request must end now.")
+            appendLine("Original user request:")
+            appendLine(userRequest.trim())
+            appendLine()
+            appendLine("Do not request tools.")
+            appendLine("Do not emit TOOL_CALL blocks.")
+            appendLine("Do not emit FILE_TO_MODIFY blocks.")
+            appendLine("Write the final assistant reply to the user based only on the supplied context.")
+            appendLine("If the work is blocked, explain the blocker and the best next step.")
+            appendLine()
+            append("Loop reason: ")
+            append(loopReason.trim())
+        }.trim()
+    }
+
+    private fun buildForcedFinalizationContext(
+        toolResults: List<AIToolExecutionResult>,
+        toolModifications: List<BaseFileModification>,
+        loopReason: String
+    ): String {
+        val sessionContext = buildSessionContext()
+        return buildString {
+            appendLine("=== TOOL RUN FINALIZATION ===")
+            appendLine("The previous tool run is being finalized without any more tool calls.")
+            appendLine("Loop reason: $loopReason")
+            appendLine("You must reply with final natural language only.")
+
+            if (toolResults.isNotEmpty()) {
+                appendLine()
+                appendLine("=== RECENT TOOL RESULTS ===")
+                toolResults.takeLast(8).forEachIndexed { index, result ->
+                    append(index + 1)
+                    append(". ")
+                    appendLine(buildCompactToolResultSummary(result))
+                }
+            }
+
+            if (toolModifications.isNotEmpty()) {
+                appendLine()
+                appendLine("=== APPLIED FILE CHANGES ===")
+                toolModifications.takeLast(8).forEachIndexed { index, modification ->
+                    val status = if (modification.writeResult is FileWriteResult.Success) "applied" else "failed"
+                    append(index + 1)
+                    append(". ")
+                    append(File(modification.filePath).name)
+                    append(" -> ")
+                    append(status)
+                    append(" (")
+                    append(modification.filePath)
+                    appendLine(")")
+                }
+            }
+
+            if (sessionContext.isNotBlank()) {
+                appendLine()
+                appendLine(sessionContext)
+            }
+        }.trim()
+    }
+
+    private fun buildCompactToolResultSummary(toolResult: AIToolExecutionResult): String {
+        val outputTail = toolResult.output
+            .trim()
+            .takeIf { it.isNotBlank() }
+            ?.replace(Regex("\\s+"), " ")
+            ?.takeLast(320)
+
+        return buildString {
+            append(toolResult.toolName)
+            append(": ")
+            append(if (toolResult.success) "success" else "failure")
+            append(" | ")
+            append(toolResult.summary)
+            toolResult.executedCommand?.takeIf { it.isNotBlank() }?.let {
+                append(" | cmd=")
+                append(it.take(180))
+            }
+            toolResult.exitCode?.let {
+                append(" | exit=")
+                append(it)
+            }
+            outputTail?.let {
+                append(" | output_tail=")
+                append(it)
+            }
+        }
+    }
+
+    private fun buildForcedFinalFallback(
+        toolResults: List<AIToolExecutionResult>,
+        toolModifications: List<BaseFileModification>,
+        loopReason: String
+    ): String {
+        return buildString {
+            appendLine("I stopped requesting more tools to avoid repeating the same action.")
+            appendLine()
+            appendLine("Reason: $loopReason")
+
+            if (toolModifications.isNotEmpty()) {
+                appendLine()
+                appendLine("Files touched in this run:")
+                toolModifications.takeLast(8).forEach { modification ->
+                    val status = if (modification.writeResult is FileWriteResult.Success) "applied" else "failed"
+                    append("- ")
+                    append(File(modification.filePath).name)
+                    append(" (")
+                    append(status)
+                    appendLine(")")
+                }
+            }
+
+            if (toolResults.isNotEmpty()) {
+                appendLine()
+                appendLine("Latest tool findings:")
+                toolResults.takeLast(5).forEach { result ->
+                    append("- ")
+                    append(result.toolName)
+                    append(": ")
+                    appendLine(result.summary)
+                }
+            }
+
+            appendLine()
+            append("Tell me the next step if you want me to continue from this state.")
+        }.trim()
+    }
+
+    private fun containsProtocolBlocks(text: String): Boolean {
+        val normalized = text.trimStart()
+        return normalized.startsWith("TOOL_CALL:") ||
+            normalized.startsWith("FILE_TO_MODIFY:") ||
+            "\nTOOL_CALL:" in normalized ||
+            "\nFILE_TO_MODIFY:" in normalized
     }
 
     private fun formatToolStartMessage(toolCall: AIToolCall): String {
@@ -619,6 +1662,12 @@ class AIAgentManager(private val context: Context) {
         val providerName = currentAgent?.providerName ?: "Unknown"
         
         return when (error) {
+            is ToolExecutionDisabledException ->
+                "🧰 TOOL EXECUTION DISABLED\n\n${error.message}"
+            is ToolProtocolException ->
+                "⚠️ TOOL PROTOCOL ERROR\n\n${error.message}"
+            is ToolCallLoopException ->
+                "🔁 TOOL LOOP STOPPED\n\n${error.message}"
             is com.tom.rv2ide.artificial.exceptions.RateLimitException -> 
                 "⚠️ RATE LIMIT EXCEEDED\n\nThe API rate limit has been exceeded.\nPlease wait a few minutes before trying again.\n\nDetails: $errorMessage"
             is com.tom.rv2ide.artificial.exceptions.QuotaExceededException -> 
@@ -643,18 +1692,19 @@ class AIAgentManager(private val context: Context) {
         errorMessage: String,
         onProviderSelected: (String) -> Unit
     ) {
+        val dialog = ProviderSwitchDialog(activity)
         val currentProviderName = currentAgent?.providerName ?: "Unknown"
         val availableProviders = getAvailableProviders()
             .filter { it.id != currentProviderId && it.isAvailable }
             .map { Pair(it.id, it.name) }
         
-        providerSwitchDialog.showProviderErrorDialog(
+        dialog.showProviderErrorDialog(
             currentProviderName,
             errorMessage,
             availableProviders,
             onProviderSelected = { providerId ->
                 setProvider(providerId)
-                val agents = Agents(context)
+                val agents = Agents(appContext)
                 val availableModels = agents.getModelsForProvider(providerId)
                 if (availableModels.isNotEmpty()) {
                     agents.setAgent(availableModels[0])
@@ -666,7 +1716,7 @@ class AIAgentManager(private val context: Context) {
                 val alternativeProvider = getAlternativeProvider()
                 if (alternativeProvider != null) {
                     setProvider(alternativeProvider)
-                    val agents = Agents(context)
+                    val agents = Agents(appContext)
                     val availableModels = agents.getModelsForProvider(alternativeProvider)
                     if (availableModels.isNotEmpty()) {
                         agents.setAgent(availableModels[0])
@@ -730,12 +1780,12 @@ class AIAgentManager(private val context: Context) {
     fun reinitializeWithSelectedModel() {
         val factory = AIAgentRegistry.getFactory(currentProviderId)
         factory?.getApiKey()?.let { apiKey ->
-            currentAgent?.reinitializeWithNewModel(apiKey, context)
+            currentAgent?.reinitializeWithNewModel(apiKey, appContext)
         }
     }
 
     fun getCurrentModelName(): String {
-        val agents = Agents(context)
+        val agents = Agents(appContext)
         return agents.getAgent()
     }
     
@@ -760,7 +1810,11 @@ class AIAgentManager(private val context: Context) {
         fun onTextResponse(response: String, summary: ModificationSummary)
         fun onError(message: String)
         fun onRetry(attemptNumber: Int, message: String)
+        fun onAssistantTextStarted() {}
+        fun onAssistantTextDelta(delta: String) {}
+        fun onAssistantTextFinished(fullResponse: String) {}
         fun onToolCallStarted(toolCall: AIToolCall) {}
+        fun onToolCallOutput(toolCall: AIToolCall, chunk: String) {}
         fun onToolCallCompleted(result: AIToolExecutionResult) {}
     }
 
@@ -808,7 +1862,8 @@ data class BaseFileModification(
 
 data class ResolvedAgentResponse(
     val response: String,
-    val toolModifications: List<BaseFileModification>
+    val toolModifications: List<BaseFileModification>,
+    val toolResults: List<AIToolExecutionResult>
 )
 
 data class UnifiedModificationAttempt(
@@ -819,3 +1874,52 @@ data class UnifiedModificationAttempt(
     val attemptNumber: Int = 0,
     val success: Boolean = false
 )
+
+private class ToolCallLoopException(message: String) : IllegalStateException(message)
+
+private class ToolProtocolException(message: String) : IllegalStateException(message)
+
+private class ToolExecutionDisabledException(message: String) : IllegalStateException(message)
+
+private enum class AgentSessionRole(val label: String) {
+    USER("USER"),
+    ASSISTANT("ASSISTANT"),
+    TOOL("TOOL"),
+    CHANGE("CHANGE");
+
+    companion object {
+        fun fromLabel(label: String): AgentSessionRole? {
+            return values().firstOrNull { it.label == label }
+        }
+    }
+}
+
+private data class AgentSessionTurn(
+    val role: AgentSessionRole,
+    val content: String
+)
+
+private data class ToolExecutionFingerprint(
+    val toolName: String,
+    val success: Boolean,
+    val normalizedCommand: String,
+    val failureFingerprint: String,
+    val targetFile: String?,
+    val startLine: Int?,
+    val endLine: Int?,
+    val successfulFileChangeCount: Int
+)
+
+private fun restoreAgentSessionTurn(turn: PersistedAgentSessionTurn): AgentSessionTurn? {
+    val role = AgentSessionRole.fromLabel(turn.role) ?: return null
+    return AgentSessionTurn(
+        role = role,
+        content = turn.content
+    )
+}
+
+private enum class AssistantPreviewDecision {
+    WAIT,
+    SHOW,
+    SUPPRESS
+}

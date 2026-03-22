@@ -402,6 +402,8 @@
   <string name="msg_initializing_project">初始化项目</string>
   <string name="msg_project_initialized">项目已初始化</string>
   <string name="msg_project_initialization_failed">项目初始化失败</string>
+  <string name="msg_project_sync_failed">项目同步失败</string>
+  <string name="msg_project_sync_failed_reusing_model">项目同步失败，继续使用上一次成功索引的工程模型。</string>
   <string name="msg_project_not_initialized">项目未初始化</string>
   <string name="msg_replacement">替换</string>
   <string name="title_sync_project">同步项目</string>

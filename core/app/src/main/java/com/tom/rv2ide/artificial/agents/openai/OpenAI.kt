@@ -288,7 +288,7 @@ class OpenAI : AIAgent {
       requestBody.put("model", selectedModel)
       requestBody.put("messages", messages)
       requestBody.put("temperature", 0.7)
-      requestBody.put("max_tokens", 4096)
+      requestBody.put("max_tokens", 16384)
       
       android.util.Log.d("OpenAI", "Request body: ${requestBody.toString()}")
       

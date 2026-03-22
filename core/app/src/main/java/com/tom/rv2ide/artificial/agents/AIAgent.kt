@@ -41,6 +41,30 @@ interface AIAgent {
         language: String,
         projectStructure: String?
     ): Result<String>
+
+    suspend fun generateCodeStreaming(
+        prompt: String,
+        context: String?,
+        language: String,
+        projectStructure: String?,
+        listener: AIAgentStreamListener
+    ): Result<String> {
+        val result = generateCode(prompt, context, language, projectStructure)
+        result.getOrNull()?.takeIf { it.isNotEmpty() }?.let(listener::onTextDelta)
+        result.getOrNull()?.let(listener::onCompleted)
+        return result
+    }
+
+    fun supportsNativeToolCalls(): Boolean = false
+
+    suspend fun generateStructuredTurn(
+        request: AIAgentStructuredTurnRequest,
+        listener: AIAgentStreamListener?
+    ): Result<AIAgentStructuredTurnResponse> {
+        return Result.failure(
+            UnsupportedOperationException("Structured turns are not supported by $providerName")
+        )
+    }
     
     fun recordModification(filePath: String, oldContent: String?, newContent: String, success: Boolean)
     fun undoLastModification(): Boolean
@@ -63,3 +87,9 @@ data class ModificationAttempt(
     val attemptNumber: Int = 0,
     val success: Boolean = false
 )
+
+interface AIAgentStreamListener {
+    fun onTextDelta(delta: String)
+
+    fun onCompleted(fullResponse: String) {}
+}
