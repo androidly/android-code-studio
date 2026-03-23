@@ -100,7 +100,12 @@ class CodeCompletionManager private constructor(
                     onError(Exception("No AI agent available"))
                     return@launch
                 }
-                
+
+                if (aiAgent.getCurrentProviderId() == "external") {
+                    onError(Exception("Code completion is unavailable for External Engine"))
+                    return@launch
+                }
+                 
                 if (!agent.isInitialized()) {
                     onError(Exception("AI agent not initialized"))
                     return@launch

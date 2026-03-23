@@ -53,15 +53,20 @@ val localProperties =
 val signingStorePath =
     System.getenv("SIGNING_STORE_FILE")
         ?: localProperties.getProperty("signing.storeFile")
-        ?: "signing/signing-key.jks"
+        ?: "signing/fixed-debug.keystore"
+val isDefaultFixedSigning = signingStorePath == "signing/fixed-debug.keystore"
 val signingStorePassword =
-    System.getenv("SIGNING_STORE_PASSWORD") ?: localProperties.getProperty("signing.storePassword")
+    System.getenv("SIGNING_STORE_PASSWORD")
+        ?: localProperties.getProperty("signing.storePassword")
+        ?: if (isDefaultFixedSigning) "android" else null
 val signingKeyAlias =
     System.getenv("SIGNING_KEY_ALIAS")
         ?: localProperties.getProperty("signing.keyAlias")
-        ?: "AndroidCS"
+        ?: if (isDefaultFixedSigning) "androiddebugkey" else null
 val signingKeyPassword =
-    System.getenv("SIGNING_KEY_PASSWORD") ?: localProperties.getProperty("signing.keyPassword")
+    System.getenv("SIGNING_KEY_PASSWORD")
+        ?: localProperties.getProperty("signing.keyPassword")
+        ?: if (isDefaultFixedSigning) "android" else null
 val customSigningStoreFile = rootProject.file(signingStorePath)
 val hasCustomSigning =
     customSigningStoreFile.exists()
@@ -70,8 +75,8 @@ val hasCustomSigning =
         && !signingKeyPassword.isNullOrBlank()
 
 if (!hasCustomSigning) {
-  logger.lifecycle(
-      "Custom signing is not fully configured; falling back to the default debug keystore for local packaging."
+  throw GradleException(
+      "Fixed signing is required. Configure SIGNING_* or local.properties signing.* values, or provide signing/fixed-debug.keystore."
   )
 }
 
@@ -121,22 +126,12 @@ android {
 
   buildTypes {
     debug {
-      signingConfig =
-          if (hasCustomSigning) {
-            signingConfigs.getByName("custom")
-          } else {
-            signingConfigs.getByName("debug")
-          }
+      signingConfig = signingConfigs.getByName("custom")
     }
 
     release {
       isShrinkResources = false
-      signingConfig =
-          if (hasCustomSigning) {
-            signingConfigs.getByName("custom")
-          } else {
-            signingConfigs.getByName("debug")
-          }
+      signingConfig = signingConfigs.getByName("custom")
     }
   }
   

@@ -1,5 +1,6 @@
 package com.tom.rv2ide.fragments.assistant
 
+import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.text.Spanned
 import android.text.method.LinkMovementMethod
@@ -8,29 +9,59 @@ import android.widget.TextView
 import androidx.core.text.HtmlCompat
 import com.termux.shared.markdown.MarkdownUtils
 import io.noties.markwon.Markwon
+import java.util.WeakHashMap
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 object AIAssistantRichTextRenderer {
 
-    private const val formattedMarkdownCacheChars = 120_000
-    private const val renderedMarkdownCacheChars = 240_000
+    private const val formattedMarkdownCacheChars = 48_000
+    private const val renderedMarkdownCacheChars = 96_000
+    private const val defaultMessageId = -1L
+    private const val maxCacheableRichTextChars = 12_000
+    private const val maxRichRenderedChars = 24_000
 
     private val formattedMarkdownCache = object : LruCache<String, String>(formattedMarkdownCacheChars) {
         override fun sizeOf(key: String, value: String): Int = value.length.coerceAtLeast(1)
     }
 
-    private val markwonCache = object : LruCache<String, Markwon>(8) {}
+    private val markwonCache = object : LruCache<String, Markwon>(4) {}
 
     private val renderedMarkdownCache = object : LruCache<String, Spanned>(renderedMarkdownCacheChars) {
-        override fun sizeOf(key: String, value: Spanned): Int = value.length.coerceAtLeast(1)
+        override fun sizeOf(key: String, value: Spanned): Int = (value.length.coerceAtLeast(1) * 4)
     }
+
+    private val renderScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default.limitedParallelism(2)
+    )
+    private val textViewRenderJobs = WeakHashMap<TextView, Job>()
 
     fun render(
         textView: TextView,
         rawText: String,
         isStreaming: Boolean = false
     ) {
+        render(
+            textView = textView,
+            rawText = rawText,
+            messageId = defaultMessageId,
+            isStreaming = isStreaming
+        )
+    }
+
+    fun render(
+        textView: TextView,
+        rawText: String,
+        messageId: Long,
+        isStreaming: Boolean = false
+    ) {
         if (rawText.isBlank()) {
+            cancel(textView)
             textView.text = ""
             textView.tag = null
             return
@@ -38,63 +69,197 @@ object AIAssistantRichTextRenderer {
 
         val nightMode = textView.context.applicationContext.resources.configuration.uiMode and
             Configuration.UI_MODE_NIGHT_MASK
-        val formattedKey = buildCacheKey(rawText, isStreaming)
-        val markdown = synchronized(formattedMarkdownCache) {
-            formattedMarkdownCache.get(formattedKey)
-                ?: AIAssistantMarkdownFormatter.format(rawText, isStreaming).also {
-                    formattedMarkdownCache.put(formattedKey, it)
-                }
+        val textSizePx = textView.textSize.roundToInt()
+        val contentKey = buildContentKey(
+            messageId = messageId,
+            rawText = rawText,
+            isStreaming = isStreaming
+        )
+        val renderKey = "$nightMode|${textView.currentTextColor}|$textSizePx|$contentKey"
+        if (
+            textView.tag == renderKey &&
+            textView.text?.isNotEmpty() == true &&
+            synchronized(textViewRenderJobs) { textViewRenderJobs[textView] } == null
+        ) {
+            return
         }
+
+        if (isStreaming) {
+            cancel(textView)
+            textView.tag = renderKey
+            textView.text = buildStreamingDisplayText(rawText)
+            return
+        }
+
+        if (rawText.length > maxRichRenderedChars) {
+            cancel(textView)
+            textView.tag = renderKey
+            textView.text = rawText
+            return
+        }
+
         textView.linksClickable = true
         textView.movementMethod = LinkMovementMethod.getInstance()
-
-        if (containsLatex(markdown)) {
-            markwon(textView).setMarkdown(textView, markdown)
-            textView.tag = null
-            return
-        }
-
-        val textSizePx = textView.textSize.roundToInt()
-        val renderKey = "$nightMode|${textView.currentTextColor}|$textSizePx|$formattedKey"
-        if (textView.tag == renderKey) {
-            return
-        }
-        val markwon = markwon(textView)
-        val renderedMarkdown = synchronized(renderedMarkdownCache) {
-            renderedMarkdownCache.get(renderKey)
-                ?: markwon.toMarkdown(markdown).also {
-                    renderedMarkdownCache.put(renderKey, it)
-                }
-        }
-        markwon.setParsedMarkdown(textView, renderedMarkdown)
+        cancel(textView)
         textView.tag = renderKey
+
+        val cacheRichRendering = rawText.length <= maxCacheableRichTextChars
+        val markwon = markwon(
+            context = textView.context.applicationContext,
+            textSizePx = textSizePx
+        )
+        val renderedMarkdown = if (cacheRichRendering) {
+            synchronized(renderedMarkdownCache) {
+                renderedMarkdownCache.get(renderKey)
+            }
+        } else {
+            null
+        }
+        if (renderedMarkdown != null) {
+            synchronized(markwon) {
+                markwon.setParsedMarkdown(textView, renderedMarkdown)
+            }
+            return
+        }
+
+        textView.text = rawText
+        var job: Job? = null
+        job = renderScope.launch {
+            val markdown = if (cacheRichRendering) {
+                synchronized(formattedMarkdownCache) {
+                    formattedMarkdownCache.get(contentKey)
+                        ?: AIAssistantMarkdownFormatter.format(rawText, isStreaming).also {
+                            formattedMarkdownCache.put(contentKey, it)
+                        }
+                }
+            } else {
+                AIAssistantMarkdownFormatter.format(rawText, isStreaming)
+            }
+            val rendered = if (cacheRichRendering) {
+                synchronized(renderedMarkdownCache) {
+                    renderedMarkdownCache.get(renderKey)
+                }
+            } else {
+                null
+            } ?: synchronized(markwon) {
+                markwon.toMarkdown(markdown)
+            }.also { spanned ->
+                if (cacheRichRendering) {
+                    synchronized(renderedMarkdownCache) {
+                        renderedMarkdownCache.put(renderKey, spanned)
+                    }
+                }
+            }
+
+            withContext(Dispatchers.Main.immediate) {
+                val activeJob = job ?: return@withContext
+                val activeRenderKey = textView.tag as? String
+                if (activeRenderKey != renderKey) {
+                    clearRenderJob(textView, activeJob)
+                    return@withContext
+                }
+                synchronized(markwon) {
+                    markwon.setParsedMarkdown(textView, rendered)
+                }
+                clearRenderJob(textView, activeJob)
+            }
+        }
+        synchronized(textViewRenderJobs) {
+            textViewRenderJobs[textView] = job
+        }
     }
 
-    private fun markwon(textView: TextView): Markwon {
-        val appContext = textView.context.applicationContext
-        val nightMode = appContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        val textSizePx = textView.textSize.roundToInt().coerceAtLeast(1)
+    fun cancel(textView: TextView) {
+        synchronized(textViewRenderJobs) {
+            textViewRenderJobs.remove(textView)?.cancel()
+        }
+    }
+
+    fun clearCaches(cancelJobs: Boolean = false) {
+        if (cancelJobs) {
+            val jobsToCancel = synchronized(textViewRenderJobs) {
+                textViewRenderJobs.values.toList().also { textViewRenderJobs.clear() }
+            }
+            jobsToCancel.forEach(Job::cancel)
+        }
+        synchronized(formattedMarkdownCache) {
+            formattedMarkdownCache.evictAll()
+        }
+        synchronized(renderedMarkdownCache) {
+            renderedMarkdownCache.evictAll()
+        }
+        synchronized(markwonCache) {
+            markwonCache.evictAll()
+        }
+    }
+
+    fun trimMemory(level: Int) {
+        val shouldCancelJobs = level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW
+        val shouldEvictAll = level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
+        if (shouldEvictAll) {
+            clearCaches(cancelJobs = shouldCancelJobs)
+            return
+        }
+        if (shouldCancelJobs) {
+            synchronized(textViewRenderJobs) {
+                textViewRenderJobs.values.toList().forEach(Job::cancel)
+                textViewRenderJobs.clear()
+            }
+        }
+        synchronized(formattedMarkdownCache) {
+            formattedMarkdownCache.trimToSize(formattedMarkdownCacheChars / 2)
+        }
+        synchronized(renderedMarkdownCache) {
+            renderedMarkdownCache.trimToSize(renderedMarkdownCacheChars / 2)
+        }
+        synchronized(markwonCache) {
+            markwonCache.trimToSize(2)
+        }
+    }
+
+    private fun markwon(
+        context: android.content.Context,
+        textSizePx: Int
+    ): Markwon {
+        val nightMode = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         val cacheKey = "$nightMode|$textSizePx"
         synchronized(markwonCache) {
             return markwonCache.get(cacheKey)
-                ?: MarkdownUtils.getRecyclerMarkwonBuilder(appContext, textSizePx.toFloat()).also {
+                ?: MarkdownUtils.getRecyclerMarkwonBuilder(context, textSizePx.toFloat()).also {
                     markwonCache.put(cacheKey, it)
                 }
         }
     }
 
-    private fun containsLatex(markdown: String): Boolean = markdown.contains("$$")
+    private fun clearRenderJob(textView: TextView, job: Job) {
+        synchronized(textViewRenderJobs) {
+            if (textViewRenderJobs[textView] == job) {
+                textViewRenderJobs.remove(textView)
+            }
+        }
+    }
 
-    private fun buildCacheKey(
+    private fun buildContentKey(
+        messageId: Long,
         rawText: String,
         isStreaming: Boolean
     ): String {
         return buildString {
+            append(messageId)
+            append('|')
             append(if (isStreaming) '1' else '0')
             append('|')
             append(rawText.length)
             append('|')
             append(rawText.hashCode())
+        }
+    }
+
+    private fun buildStreamingDisplayText(rawText: String): CharSequence {
+        return if (rawText.isBlank()) {
+            ""
+        } else {
+            "$rawText\n\n▍"
         }
     }
 }

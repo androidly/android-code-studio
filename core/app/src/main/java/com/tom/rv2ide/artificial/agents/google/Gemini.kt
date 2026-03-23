@@ -23,6 +23,7 @@ import com.google.ai.client.generativeai.type.content
 import com.tom.rv2ide.artificial.agents.AIAgent
 import com.tom.rv2ide.artificial.agents.AIAgentRegistry
 import com.tom.rv2ide.artificial.agents.ModificationAttempt
+import com.tom.rv2ide.artificial.agents.addBoundedModificationAttempt
 import com.tom.rv2ide.artificial.secrets.ApiKey
 import com.tom.rv2ide.artificial.services.ArtificialService
 import com.tom.rv2ide.artificial.rules.WritingRules
@@ -115,7 +116,7 @@ class Gemini : AIAgent {
   }
 
   override fun recordModification(filePath: String, oldContent: String?, newContent: String, success: Boolean) {
-    modificationHistory.add(
+    modificationHistory.addBoundedModificationAttempt(
         ModificationAttempt(
             timestamp = System.currentTimeMillis(),
             filePath = filePath,

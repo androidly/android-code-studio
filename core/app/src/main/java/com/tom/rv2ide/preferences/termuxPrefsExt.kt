@@ -21,7 +21,9 @@ import android.content.Context
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
+import com.google.android.material.textfield.TextInputLayout
 import com.termux.shared.logger.Logger
+import com.termux.shared.termux.repository.TermuxPackageRepository
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences
 import com.tom.rv2ide.R
 import com.tom.rv2ide.app.IDEApplication
@@ -36,6 +38,11 @@ private const val KEY_TERMUX_DEBUGGING_TERMINAL_VIEW_KEY_LOGGING_PREFERENCE =
     "${KEY_TERMUX_DEBUGGING_PREFERENCES}.terminalViewKeyLogging"
 private const val KEY_TERMUX_DEBUGGING_CRASH_REPORT_NOTIFICATIONS_PREFERENCE =
     "${KEY_TERMUX_DEBUGGING_PREFERENCES}.crashReportNotifications"
+private const val KEY_TERMUX_REPOSITORY_PREFERENCES = "${KEY_TERMUX_PREFERENCES}.repositories"
+private const val KEY_TERMUX_MAIN_REPOSITORY_PREFERENCE =
+    "${KEY_TERMUX_REPOSITORY_PREFERENCES}.mainPackageRepository"
+private const val KEY_TERMUX_NPM_REGISTRY_PREFERENCE =
+    "${KEY_TERMUX_REPOSITORY_PREFERENCES}.npmRegistry"
 private const val KEY_TERMUX_KBD_PREFERENCES = "${KEY_TERMUX_PREFERENCES}.keyboard"
 private const val KEY_TERMUX_KBD_SOFT_KDB_ENABLED_PREFERENCE =
     "${KEY_TERMUX_KBD_PREFERENCES}.softKeyboardEnabled"
@@ -79,9 +86,113 @@ class TermuxPreferences(
 ) : IPreferenceScreen() {
 
   init {
+    addPreference(TermuxRepositoryPreferences())
     addPreference(TermuxDebuggingPreferences())
     addPreference(TermuxKeyboardPreferences())
     addPreference(TermuxViewPreferences())
+  }
+}
+
+private fun termuxMainRepositorySummary(context: Context): String {
+  val effectiveRepo = TermuxPackageRepository.getEffectiveMainRepo(context)
+  val configuredRepo = TermuxPackageRepository.getConfiguredMainRepo(context)
+  return if (configuredRepo.isNullOrBlank()) {
+    context.getString(R.string.termux_main_package_repository_url_summary_default, effectiveRepo)
+  } else {
+    context.getString(R.string.termux_main_package_repository_url_summary_custom, effectiveRepo)
+  }
+}
+
+private fun termuxNpmRegistrySummary(context: Context): String {
+  val effectiveRegistry = TermuxPackageRepository.getEffectiveNpmRegistry(context)
+  val configuredRegistry = TermuxPackageRepository.getConfiguredNpmRegistry(context)
+  return if (configuredRegistry.isNullOrBlank()) {
+    context.getString(R.string.termux_npm_registry_url_summary_default, effectiveRegistry)
+  } else {
+    context.getString(R.string.termux_npm_registry_url_summary_custom, effectiveRegistry)
+  }
+}
+
+@Parcelize
+class TermuxRepositoryPreferences(
+    override val key: String = KEY_TERMUX_REPOSITORY_PREFERENCES,
+    override val title: Int = R.string.termux_repository_preferences_title,
+    override val children: List<IPreference> = mutableListOf(),
+) : IPreferenceGroup() {
+
+  init {
+    addPreference(TermuxMainRepositoryPreference())
+    addPreference(TermuxNpmRegistryPreference())
+  }
+}
+
+@Parcelize
+class TermuxMainRepositoryPreference(
+    override val key: String = KEY_TERMUX_MAIN_REPOSITORY_PREFERENCE,
+    override val title: Int = R.string.termux_main_package_repository_url_title,
+    override val icon: Int? = R.drawable.ic_package,
+) : EditTextPreference() {
+
+  override fun onCreatePreference(context: Context): Preference {
+    return super.onCreatePreference(context).also { preference ->
+      preference.summary = termuxMainRepositorySummary(context)
+    }
+  }
+
+  override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
+    TermuxPackageRepository.setConfiguredMainRepo(preference.context, newValue as String?)
+    preference.summary = termuxMainRepositorySummary(preference.context)
+    return true
+  }
+
+  override fun onConfigureTextInput(input: TextInputLayout) {
+    input.setStartIconDrawable(R.drawable.ic_package)
+    input.setHint(R.string.termux_main_package_repository_url_hint)
+    input.helperText =
+        input.context.getString(
+            R.string.termux_main_package_repository_url_helper,
+            TermuxPackageRepository.getDefaultMainRepo(),
+        )
+    input.isCounterEnabled = false
+    input.editText?.apply {
+      isSingleLine = true
+      setText(TermuxPackageRepository.getConfiguredMainRepo(context).orEmpty())
+    }
+  }
+}
+
+@Parcelize
+class TermuxNpmRegistryPreference(
+    override val key: String = KEY_TERMUX_NPM_REGISTRY_PREFERENCE,
+    override val title: Int = R.string.termux_npm_registry_url_title,
+    override val icon: Int? = R.drawable.ic_package,
+) : EditTextPreference() {
+
+  override fun onCreatePreference(context: Context): Preference {
+    return super.onCreatePreference(context).also { preference ->
+      preference.summary = termuxNpmRegistrySummary(context)
+    }
+  }
+
+  override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
+    TermuxPackageRepository.setConfiguredNpmRegistry(preference.context, newValue as String?)
+    preference.summary = termuxNpmRegistrySummary(preference.context)
+    return true
+  }
+
+  override fun onConfigureTextInput(input: TextInputLayout) {
+    input.setStartIconDrawable(R.drawable.ic_package)
+    input.setHint(R.string.termux_npm_registry_url_hint)
+    input.helperText =
+        input.context.getString(
+            R.string.termux_npm_registry_url_helper,
+            TermuxPackageRepository.getDefaultNpmRegistry(),
+        )
+    input.isCounterEnabled = false
+    input.editText?.apply {
+      isSingleLine = true
+      setText(TermuxPackageRepository.getConfiguredNpmRegistry(context).orEmpty())
+    }
   }
 }
 

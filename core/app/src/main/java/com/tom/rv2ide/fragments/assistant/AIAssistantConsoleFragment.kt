@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.core.widget.doAfterTextChanged
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -24,21 +25,51 @@ import com.tom.rv2ide.R
 import com.tom.rv2ide.activities.ModificationData
 import com.tom.rv2ide.activities.ReviewChangesActivity
 import com.tom.rv2ide.activities.editor.EditorHandlerActivity
+import com.tom.rv2ide.artificial.agents.Agents
+import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
+import com.tom.rv2ide.artificial.dialogs.ExternalEngineConfigDialog
 import com.tom.rv2ide.utils.ProjectHelper.getProjectRoot
 import java.io.File
 import kotlinx.coroutines.launch
 
 class AIAssistantConsoleFragment : Fragment() {
 
-    private lateinit var providerText: MaterialTextView
-    private lateinit var modelText: MaterialTextView
-    private lateinit var timelineRecyclerView: RecyclerView
-    private lateinit var promptInput: TextInputEditText
-    private lateinit var sendButton: MaterialButton
-    private lateinit var stopButton: MaterialButton
-    private lateinit var reviewButton: MaterialButton
-    private lateinit var clearButton: MaterialButton
-    private lateinit var jumpToBottomButton: MaterialButton
+    private var _providerText: MaterialTextView? = null
+    private val providerText: MaterialTextView
+        get() = requireNotNull(_providerText)
+    private var _modelText: MaterialTextView? = null
+    private val modelText: MaterialTextView
+        get() = requireNotNull(_modelText)
+    private var _sessionText: TextView? = null
+    private val sessionText: TextView
+        get() = requireNotNull(_sessionText)
+    private var _timelineRecyclerView: RecyclerView? = null
+    private val timelineRecyclerView: RecyclerView
+        get() = requireNotNull(_timelineRecyclerView)
+    private var _promptInput: TextInputEditText? = null
+    private val promptInput: TextInputEditText
+        get() = requireNotNull(_promptInput)
+    private var _engineButton: MaterialButton? = null
+    private val engineButton: MaterialButton
+        get() = requireNotNull(_engineButton)
+    private var _slashButton: MaterialButton? = null
+    private val slashButton: MaterialButton
+        get() = requireNotNull(_slashButton)
+    private var _sendButton: MaterialButton? = null
+    private val sendButton: MaterialButton
+        get() = requireNotNull(_sendButton)
+    private var _stopButton: MaterialButton? = null
+    private val stopButton: MaterialButton
+        get() = requireNotNull(_stopButton)
+    private var _reviewButton: MaterialButton? = null
+    private val reviewButton: MaterialButton
+        get() = requireNotNull(_reviewButton)
+    private var _clearButton: MaterialButton? = null
+    private val clearButton: MaterialButton
+        get() = requireNotNull(_clearButton)
+    private var _jumpToBottomButton: MaterialButton? = null
+    private val jumpToBottomButton: MaterialButton
+        get() = requireNotNull(_jumpToBottomButton)
 
     private val consoleViewModel: AIAssistantConsoleViewModel by activityViewModels()
     private val timelineAdapter by lazy { AIAssistantTimelineAdapter(::openDiffFile) }
@@ -72,19 +103,43 @@ class AIAssistantConsoleFragment : Fragment() {
 
     override fun onDestroyView() {
         consoleViewModel.setFileRefreshHandler(null)
+        _timelineRecyclerView?.apply {
+            stopScroll()
+            clearOnScrollListeners()
+            recycledViewPool.clear()
+            itemAnimator = null
+            adapter = null
+        }
+        timelineAdapter.replaceAll(emptyList())
+        AIAssistantRichTextRenderer.clearCaches(cancelJobs = true)
+        _providerText = null
+        _modelText = null
+        _sessionText = null
+        _timelineRecyclerView = null
+        _promptInput = null
+        _engineButton = null
+        _slashButton = null
+        _sendButton = null
+        _stopButton = null
+        _reviewButton = null
+        _clearButton = null
+        _jumpToBottomButton = null
         super.onDestroyView()
     }
 
     private fun bindViews(root: View) {
-        providerText = root.findViewById(R.id.providerText)
-        modelText = root.findViewById(R.id.modelText)
-        timelineRecyclerView = root.findViewById(R.id.timelineRecyclerView)
-        promptInput = root.findViewById(R.id.promptInput)
-        sendButton = root.findViewById(R.id.sendButton)
-        stopButton = root.findViewById(R.id.stopButton)
-        reviewButton = root.findViewById(R.id.reviewButton)
-        clearButton = root.findViewById(R.id.clearButton)
-        jumpToBottomButton = root.findViewById(R.id.jumpToBottomButton)
+        _providerText = root.findViewById(R.id.providerText)
+        _modelText = root.findViewById(R.id.modelText)
+        _sessionText = root.findViewById(R.id.sessionText)
+        _timelineRecyclerView = root.findViewById(R.id.timelineRecyclerView)
+        _promptInput = root.findViewById(R.id.promptInput)
+        _engineButton = root.findViewById(R.id.engineButton)
+        _slashButton = root.findViewById(R.id.slashButton)
+        _sendButton = root.findViewById(R.id.sendButton)
+        _stopButton = root.findViewById(R.id.stopButton)
+        _reviewButton = root.findViewById(R.id.reviewButton)
+        _clearButton = root.findViewById(R.id.clearButton)
+        _jumpToBottomButton = root.findViewById(R.id.jumpToBottomButton)
     }
 
     private fun setupTimeline() {
@@ -125,22 +180,59 @@ class AIAssistantConsoleFragment : Fragment() {
         }
 
         sendButton.setOnClickListener {
-            val prompt = promptInput.text?.toString().orEmpty().trim()
-            if (prompt.isBlank()) {
-                showSnackbar("Enter a request or use /help")
-                return@setOnClickListener
-            }
+            submitPrompt(interruptActiveRun = false)
+        }
 
-            if (handleSlashCommand(prompt)) {
-                return@setOnClickListener
-            }
+        sendButton.setOnLongClickListener {
+            submitPrompt(interruptActiveRun = true)
+            true
+        }
 
-            forceScrollOnNextTimelineUpdate = true
-            consoleViewModel.executePrompt(prompt)
+        engineButton.setOnClickListener {
+            val codexStatus = CodexTermuxBridge.status()
+            val agents = Agents(requireContext())
+            when {
+                !codexStatus.ready -> {
+                    CodexTermuxBridge.installAndConfigure(
+                        context = requireContext(),
+                        selectProvider = true
+                    )
+                    consoleViewModel.refreshAgentPresentation()
+                    showSnackbar(
+                        if (codexStatus.launcherNeedsRepair) {
+                            "Opened Codex CLI repair script and kept the assistant on the Codex preset"
+                        } else {
+                            "Opened Codex CLI installer and switched the assistant to the Codex preset"
+                        }
+                    )
+                }
+                agents.getProvider() != "external" -> {
+                    CodexTermuxBridge.applyPreset(
+                        selectProvider = true,
+                        context = requireContext()
+                    )
+                    consoleViewModel.refreshAgentPresentation()
+                    showSnackbar("Assistant switched to Codex CLI")
+                }
+                else -> {
+                    ExternalEngineConfigDialog { savedSettings ->
+                        Agents(requireContext()).setProvider("external")
+                        Agents(requireContext()).setAgent(savedSettings.resolvedDisplayLabel())
+                        consoleViewModel.refreshAgentPresentation()
+                    }.show(parentFragmentManager, "ExternalEngineConfigDialog")
+                }
+            }
+        }
+
+        slashButton.setOnClickListener {
+            showSlashCommandSheet()
         }
 
         stopButton.setOnClickListener {
-            consoleViewModel.stopExecution()
+            val clearedQueuedPrompts = consoleViewModel.stopExecution()
+            if (clearedQueuedPrompts > 0) {
+                showSnackbar("Stopped the current run and cleared $clearedQueuedPrompts queued messages")
+            }
         }
 
         reviewButton.setOnClickListener {
@@ -173,9 +265,38 @@ class AIAssistantConsoleFragment : Fragment() {
         latestUiState = state
         providerText.text = state.providerLabel
         modelText.text = state.modelLabel
-        sendButton.isEnabled = !state.isRunning
+        sessionText.isVisible = state.sessionLabel.isNotBlank()
+        sessionText.text = if (state.sessionLabel.isBlank()) {
+            ""
+        } else {
+            buildString {
+                append("Session: ${state.sessionLabel}")
+                if (state.queuedPromptCount > 0) {
+                    append("  •  queued ${state.queuedPromptCount}")
+                }
+            }
+        }
+        val codexStatus = CodexTermuxBridge.status()
+        val providerId = Agents(requireContext()).getProvider()
+        engineButton.text = when {
+            codexStatus.launcherNeedsRepair -> "Fix Codex"
+            !codexStatus.installed || !codexStatus.configuredForCodex -> "Install"
+            providerId != "external" -> "Use Codex"
+            else -> "Codex"
+        }
+        sendButton.isEnabled = true
         stopButton.isEnabled = state.isRunning
-        promptInput.isEnabled = !state.isRunning
+        stopButton.text = if (state.isRunning && state.queuedPromptCount > 0) {
+            "Stop (${state.queuedPromptCount})"
+        } else {
+            "Stop"
+        }
+        promptInput.isEnabled = true
+        sendButton.contentDescription = if (state.isRunning) {
+            "Queue request. Long press to interrupt the active run."
+        } else {
+            "Send request"
+        }
         reviewButton.isEnabled = state.hasReviewableChanges
 
         val currentDraft = promptInput.text?.toString().orEmpty()
@@ -196,8 +317,8 @@ class AIAssistantConsoleFragment : Fragment() {
             updateJumpToBottomButton()
         }
 
-        if (timelineAdapter.getItemsSnapshot() != state.timelineItems) {
-            val previousItems = timelineAdapter.getItemsSnapshot()
+        val previousItems = timelineAdapter.getItemsSnapshot()
+        if (previousItems != state.timelineItems) {
             val shouldAutoScroll = pendingHistoryPrependAnchor == null &&
                 shouldAutoScroll(previousItems, state.timelineItems)
             timelineAdapter.replaceAll(state.timelineItems) {
@@ -224,21 +345,56 @@ class AIAssistantConsoleFragment : Fragment() {
 
     private fun handleSlashCommand(commandText: String): Boolean {
         val normalized = commandText.trim()
-        return when {
-            normalized.equals("/clear", ignoreCase = true) -> {
+        val command = normalized.substringBefore(' ').lowercase()
+        val argument = normalized.substringAfter(' ', missingDelimiterValue = "").trim()
+        return when (command) {
+            "/new" -> {
+                forceScrollOnNextTimelineUpdate = true
+                val createdLabel = consoleViewModel.createNewSession(argument.ifBlank { null })
+                if (createdLabel == null) {
+                    showSnackbar("Unable to create a new session")
+                } else {
+                    showSnackbar("Started $createdLabel")
+                }
+                true
+            }
+            "/list", "/sessions" -> {
+                forceScrollOnNextTimelineUpdate = true
+                consoleViewModel.showSessionList()
+                true
+            }
+            "/switch" -> {
+                if (argument.isBlank()) {
+                    showSnackbar("Use /switch <number> or pick it from the / menu")
+                } else {
+                    forceScrollOnNextTimelineUpdate = true
+                    val switchedLabel = consoleViewModel.switchSession(argument)
+                    if (switchedLabel == null) {
+                        showSnackbar("Session not found: $argument")
+                    } else {
+                        showSnackbar("Switched to $switchedLabel")
+                    }
+                }
+                true
+            }
+            "/clear" -> {
                 consoleViewModel.clearTimeline()
                 showSnackbar("Assistant timeline cleared")
                 true
             }
-            normalized.equals("/stop", ignoreCase = true) -> {
-                consoleViewModel.stopExecution()
+            "/stop" -> {
+                val clearedQueuedPrompts = consoleViewModel.stopExecution()
+                if (clearedQueuedPrompts > 0) {
+                    showSnackbar("Stopped the current run and cleared $clearedQueuedPrompts queued messages")
+                }
                 true
             }
-            normalized.equals("/review", ignoreCase = true) -> {
+            "/review" -> {
                 openReview()
                 true
             }
-            normalized.equals("/help", ignoreCase = true) -> {
+            "/help" -> {
+                forceScrollOnNextTimelineUpdate = true
                 consoleViewModel.showCommandsHelp()
                 true
             }
@@ -250,7 +406,8 @@ class AIAssistantConsoleFragment : Fragment() {
         force: Boolean = false,
         smooth: Boolean = false
     ) {
-        timelineRecyclerView.post {
+        val recyclerView = _timelineRecyclerView ?: return
+        recyclerView.post {
             val count = timelineAdapter.itemCount
             if (count <= 0) {
                 forceScrollOnNextTimelineUpdate = false
@@ -260,14 +417,14 @@ class AIAssistantConsoleFragment : Fragment() {
                 forceScrollOnNextTimelineUpdate = false
                 return@post
             }
-            timelineRecyclerView.stopScroll()
+            recyclerView.stopScroll()
             if (smooth) {
-                timelineRecyclerView.smoothScrollToPosition(count - 1)
+                recyclerView.smoothScrollToPosition(count - 1)
             } else {
-                timelineRecyclerView.scrollBy(0, timelineRecyclerView.computeVerticalScrollRange())
-                if (timelineRecyclerView.canScrollVertically(1)) {
-                    timelineRecyclerView.scrollToPosition(count - 1)
-                    timelineRecyclerView.scrollBy(0, timelineRecyclerView.computeVerticalScrollRange())
+                recyclerView.scrollBy(0, recyclerView.computeVerticalScrollRange())
+                if (recyclerView.canScrollVertically(1)) {
+                    recyclerView.scrollToPosition(count - 1)
+                    recyclerView.scrollBy(0, recyclerView.computeVerticalScrollRange())
                 }
             }
             hasAutoScrolledInitialState = true
@@ -323,7 +480,8 @@ class AIAssistantConsoleFragment : Fragment() {
     }
 
     private fun updateJumpToBottomButton() {
-        if (!this::jumpToBottomButton.isInitialized || !this::timelineRecyclerView.isInitialized) {
+        val jumpButton = _jumpToBottomButton ?: return
+        if (_timelineRecyclerView == null) {
             return
         }
         val atBottom = isAtBottom()
@@ -331,11 +489,11 @@ class AIAssistantConsoleFragment : Fragment() {
             unreadTimelineCount = 0
         }
         val shouldShow = !atBottom || unreadTimelineCount > 0
-        jumpToBottomButton.isVisible = shouldShow
+        jumpButton.isVisible = shouldShow
         if (!shouldShow) {
             return
         }
-        jumpToBottomButton.text = if (unreadTimelineCount > 0) {
+        jumpButton.text = if (unreadTimelineCount > 0) {
             "${if (unreadTimelineCount >= 99) "99+" else unreadTimelineCount} new"
         } else {
             "Latest"
@@ -343,7 +501,7 @@ class AIAssistantConsoleFragment : Fragment() {
     }
 
     private fun maybeLoadOlderHistory(scrollDeltaY: Int) {
-        if (!this::timelineRecyclerView.isInitialized) {
+        if (_timelineRecyclerView == null) {
             return
         }
         if (scrollDeltaY >= 0) {
@@ -413,7 +571,8 @@ class AIAssistantConsoleFragment : Fragment() {
             return true
         }
 
-        timelineRecyclerView.post {
+        val recyclerView = _timelineRecyclerView ?: return true
+        recyclerView.post {
             layoutManager.scrollToPositionWithOffset(anchorPosition, anchor.topOffset)
             userAtBottom = isAtBottom()
             updateJumpToBottomButton()
@@ -422,13 +581,14 @@ class AIAssistantConsoleFragment : Fragment() {
     }
 
     private fun isAtBottom(): Boolean {
-        if (!timelineRecyclerView.isAttachedToWindow) {
+        val recyclerView = _timelineRecyclerView ?: return true
+        if (!recyclerView.isAttachedToWindow) {
             return true
         }
         if (timelineAdapter.itemCount <= 0) {
             return true
         }
-        return !timelineRecyclerView.canScrollVertically(1)
+        return !recyclerView.canScrollVertically(1)
     }
 
     private fun openDiffFile(item: AIAssistantDiffItem) {
@@ -449,15 +609,7 @@ class AIAssistantConsoleFragment : Fragment() {
             return
         }
 
-        val reviewPayload = ArrayList(
-            modifications.map {
-                ModificationData(
-                    filePath = it.filePath,
-                    content = it.content,
-                    isNewFile = it.isNewFile
-                )
-            }
-        )
+        val reviewPayload = ArrayList(modifications)
 
         startActivity(
             Intent(requireContext(), ReviewChangesActivity::class.java)
@@ -484,6 +636,64 @@ class AIAssistantConsoleFragment : Fragment() {
     private fun showSnackbar(message: String) {
         val anchorView = activity?.findViewById<View>(android.R.id.content) ?: view ?: return
         Snackbar.make(anchorView, message, Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun showSlashCommandSheet() {
+        AIAssistantCommandSheetDialog { command ->
+            when (command.behavior) {
+                AIAssistantSlashCommandBehavior.EXECUTE -> {
+                    if (handleSlashCommand(command.commandText)) {
+                        clearPromptComposer()
+                    }
+                }
+                AIAssistantSlashCommandBehavior.INSERT -> {
+                    insertCommandTemplate(command.commandText)
+                }
+            }
+        }.show(parentFragmentManager, "AIAssistantCommandSheetDialog")
+    }
+
+    private fun insertCommandTemplate(commandText: String) {
+        promptInput.setText(commandText)
+        promptInput.setSelection(commandText.length)
+        promptInput.requestFocus()
+        consoleViewModel.updatePromptDraft(commandText)
+    }
+
+    private fun clearPromptComposer() {
+        promptInput.setText("")
+        consoleViewModel.updatePromptDraft("")
+    }
+
+    private fun submitPrompt(interruptActiveRun: Boolean) {
+        val prompt = promptInput.text?.toString().orEmpty().trim()
+        if (prompt.isBlank()) {
+            showSnackbar("Enter a request or use /help")
+            return
+        }
+
+        if (handleSlashCommand(prompt)) {
+            clearPromptComposer()
+            return
+        }
+
+        forceScrollOnNextTimelineUpdate = true
+        val result = if (interruptActiveRun) {
+            consoleViewModel.interruptAndExecutePrompt(prompt)
+        } else {
+            consoleViewModel.executePrompt(prompt)
+        }
+        when (result) {
+            AIAssistantPromptDispatchResult.STARTED -> Unit
+            AIAssistantPromptDispatchResult.QUEUED ->
+                showSnackbar("Queued behind the active run. Long press send to interrupt instead.")
+            AIAssistantPromptDispatchResult.INTERRUPTED ->
+                showSnackbar("Interrupted the active run. Your message moved to the front of the queue.")
+            AIAssistantPromptDispatchResult.QUEUE_FULL ->
+                showSnackbar("The queue is full. Stop the current run or wait for it to finish.")
+            AIAssistantPromptDispatchResult.REJECTED_EMPTY ->
+                showSnackbar("Enter a request or use /help")
+        }
     }
 
     private data class TimelinePrependAnchor(

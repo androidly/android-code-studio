@@ -241,6 +241,34 @@ public class TermuxAppSharedPreferences extends AppSharedPreferences {
             return SharedPreferenceUtils.getBoolean(mSharedPreferences, TERMUX_APP.KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED, TERMUX_APP.DEFAULT_VALUE_PLUGIN_ERROR_NOTIFICATIONS_ENABLED);
     }
 
+    public String getMainPackageRepositoryUrl() {
+        return SharedPreferenceUtils.getString(mSharedPreferences,
+            TERMUX_APP.KEY_MAIN_PACKAGE_REPOSITORY_URL,
+            TERMUX_APP.DEFAULT_VALUE_MAIN_PACKAGE_REPOSITORY_URL,
+            false);
+    }
+
+    public void setMainPackageRepositoryUrl(String value) {
+        SharedPreferenceUtils.setString(mSharedPreferences,
+            TERMUX_APP.KEY_MAIN_PACKAGE_REPOSITORY_URL,
+            value == null ? TERMUX_APP.DEFAULT_VALUE_MAIN_PACKAGE_REPOSITORY_URL : value.trim(),
+            false);
+    }
+
+    public String getNpmRegistryUrl() {
+        return SharedPreferenceUtils.getString(mSharedPreferences,
+            TERMUX_APP.KEY_NPM_REGISTRY_URL,
+            TERMUX_APP.DEFAULT_VALUE_NPM_REGISTRY_URL,
+            false);
+    }
+
+    public void setNpmRegistryUrl(String value) {
+        SharedPreferenceUtils.setString(mSharedPreferences,
+            TERMUX_APP.KEY_NPM_REGISTRY_URL,
+            value == null ? TERMUX_APP.DEFAULT_VALUE_NPM_REGISTRY_URL : value.trim(),
+            false);
+    }
+
     public void setPluginErrorNotificationsEnabled(boolean value) {
         SharedPreferenceUtils.setBoolean(mSharedPreferences, TERMUX_APP.KEY_PLUGIN_ERROR_NOTIFICATIONS_ENABLED, value, false);
     }

@@ -34,11 +34,15 @@ import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.URLSpan
 import android.view.ViewGroup
+import android.widget.Toast
 import android.widget.ArrayAdapter
 import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
+import com.termux.shared.termux.repository.TermuxPackageRepository
 import com.github.appintro.SlidePolicy
 import com.tom.rv2ide.R
+import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
 import com.tom.rv2ide.databinding.LayoutOnboardngSetupConfigBinding
 import com.tom.rv2ide.models.IdeSetupArgument
 import com.tom.rv2ide.resources.R.string
@@ -136,6 +140,32 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
               ndkVersions,
           )
       )
+
+      installCodexCli.text =
+          if (CodexTermuxBridge.status().installed) "Reinstall Codex CLI" else "Install Codex CLI"
+      packageRepositoryUrl.setText(
+          TermuxPackageRepository.getConfiguredMainRepo(requireContext()).orEmpty()
+      )
+      npmRegistryUrl.setText(
+          TermuxPackageRepository.getConfiguredNpmRegistry(requireContext()).orEmpty()
+      )
+      refreshPackageRepositorySummary()
+      refreshNpmRegistrySummary()
+      packageRepositoryUrl.doAfterTextChanged { refreshPackageRepositorySummary() }
+      npmRegistryUrl.doAfterTextChanged { refreshNpmRegistrySummary() }
+      installCodexCli.setOnClickListener {
+        persistConfiguredRegistries()
+        CodexTermuxBridge.installAndConfigure(
+            context = requireContext(),
+            selectProvider = true,
+        )
+        Toast.makeText(
+                requireContext(),
+                "Opened Codex CLI installer and applied the preset",
+                Toast.LENGTH_SHORT,
+            )
+            .show()
+      }
     }
 
     updateConnectionStatus()
@@ -144,6 +174,7 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
   fun isAutoInstall(): Boolean = content.autoInstallSwitch.isChecked
 
   fun buildIdeSetupArguments(): Array<String> {
+    persistConfiguredRegistries()
     val args = mutableListOf<String>()
     args.setArgument(IdeSetupArgument.INSTALL_DIR, Environment.HOME.absolutePath)
     args.setArgument(
@@ -166,6 +197,41 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
       args.setArgument(IdeSetupArgument.WITH_OPENSSH)
     }
     return args.toTypedArray()
+  }
+
+  private fun persistConfiguredRegistries() {
+    TermuxPackageRepository.setConfiguredMainRepo(
+        requireContext(),
+        content.packageRepositoryUrl.text?.toString(),
+    )
+    TermuxPackageRepository.setConfiguredNpmRegistry(
+        requireContext(),
+        content.npmRegistryUrl.text?.toString(),
+    )
+  }
+
+  private fun refreshPackageRepositorySummary() {
+    val enteredValue = content.packageRepositoryUrl.text?.toString()
+    val effectiveRepo = TermuxPackageRepository.normalizeRepoUrl(enteredValue)
+        ?: TermuxPackageRepository.getDefaultMainRepo()
+    content.packageRepositoryUrlLayout.helperText =
+        if (enteredValue.isNullOrBlank()) {
+          getString(R.string.termux_main_package_repository_url_summary_default, effectiveRepo)
+        } else {
+          getString(R.string.termux_main_package_repository_url_summary_custom, effectiveRepo)
+        }
+  }
+
+  private fun refreshNpmRegistrySummary() {
+    val enteredValue = content.npmRegistryUrl.text?.toString()
+    val effectiveRegistry = TermuxPackageRepository.normalizeRegistryUrl(enteredValue)
+        ?: TermuxPackageRepository.getDefaultNpmRegistry()
+    content.npmRegistryUrlLayout.helperText =
+        if (enteredValue.isNullOrBlank()) {
+          getString(R.string.termux_npm_registry_url_summary_default, effectiveRegistry)
+        } else {
+          getString(R.string.termux_npm_registry_url_summary_custom, effectiveRegistry)
+        }
   }
 
   private fun MutableList<String>.setArgument(argument: IdeSetupArgument, value: Any? = null) {

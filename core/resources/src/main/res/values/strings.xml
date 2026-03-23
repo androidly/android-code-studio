@@ -1001,6 +1001,17 @@ This AI agent is designed to assist you in developing Android applications direc
   <string name="msg_cannot_create_terminal_session">Unable to create terminal session</string>
   <string name="action_auto_install">Automatic installation</string>
   <string name="action_manual_install">Manual installation</string>
+  <string name="termux_repository_preferences_title">Package repositories</string>
+  <string name="termux_main_package_repository_url_title">Compatible package repository</string>
+  <string name="termux_main_package_repository_url_hint">Compatible repository URL</string>
+  <string name="termux_main_package_repository_url_helper">Use a mirror compatible with this app\'s Termux packages. Leave blank to use the default: %1$s</string>
+  <string name="termux_main_package_repository_url_summary_default">Default repository: %1$s</string>
+  <string name="termux_main_package_repository_url_summary_custom">Custom repository: %1$s</string>
+  <string name="termux_npm_registry_url_title">NPM registry</string>
+  <string name="termux_npm_registry_url_hint">NPM registry URL</string>
+  <string name="termux_npm_registry_url_helper">Use a reachable npm registry for Codex CLI installation. Leave blank to use the default: %1$s</string>
+  <string name="termux_npm_registry_url_summary_default">Default npm registry: %1$s</string>
+  <string name="termux_npm_registry_url_summary_custom">Custom npm registry: %1$s</string>
   <string name="hint_android_sdk_version">Android SDK version</string>
   <string name="hint_android_ndk_version">Android NDK version</string>
   <string name="hin_jdk_version">JDK version</string>

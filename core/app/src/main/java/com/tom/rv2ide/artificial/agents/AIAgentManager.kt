@@ -24,6 +24,8 @@ import com.tom.rv2ide.artificial.agents.anthropic.Anthropic
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderAgent
 import com.tom.rv2ide.artificial.agents.grok.Grok
 import com.tom.rv2ide.artificial.agents.deepseek.DeepSeek
+import com.tom.rv2ide.artificial.agents.external.ExternalEngineException
+import com.tom.rv2ide.artificial.agents.external.ExternalEngineAgent
 import com.tom.rv2ide.artificial.agents.local.LocalLLM
 import com.tom.rv2ide.artificial.file.FileWriteResult
 import com.tom.rv2ide.artificial.parser.SnippetParser
@@ -43,6 +45,7 @@ import kotlin.math.min
 class AIAgentManager(private val context: Context) {
 
     companion object {
+        private const val DEFAULT_CONVERSATION_SESSION_ID = "default"
         private const val MAX_SESSION_TURNS = 12
         private const val MAX_SESSION_TEXT_CHARS = 1200
         private val LOOP_SENSITIVE_TOOL_NAMES = setOf(
@@ -70,6 +73,7 @@ class AIAgentManager(private val context: Context) {
     private var currentProjectRoot: File? = null
     private var currentProviderId: String = Agents(appContext).getProvider()
     private var currentAgent: AIAgent? = null
+    private var currentConversationSessionId: String = DEFAULT_CONVERSATION_SESSION_ID
     private var restoredPersistentSessionKey: String? = null
     private val providerSwitchDialog = ProviderSwitchDialog(appContext)
     init {
@@ -80,6 +84,7 @@ class AIAgentManager(private val context: Context) {
         DeepSeek.registerAgent()
         LocalLLM.registerAgent()
         CustomProviderAgent.registerAgent()
+        ExternalEngineAgent.registerAgent()
         
         permissionManager.setFileWriteEnabled(true)
         permissionManager.setRequireConfirmation(false)
@@ -113,6 +118,7 @@ class AIAgentManager(private val context: Context) {
         
         currentProviderId = providerId
         currentAgent = factory.create(appContext)
+        currentAgent?.setConversationSessionId(currentConversationSessionId)
         restoredPersistentSessionKey = null
         android.util.Log.d("AIAgentManager", "Agent created: ${currentAgent != null}")
         
@@ -138,11 +144,39 @@ class AIAgentManager(private val context: Context) {
     fun getCurrentProviderId(): String = currentProviderId
 
     fun getCurrentSessionStorageKey(): String = currentSessionKey()
+
+    fun setConversationSessionId(sessionId: String) {
+        val normalizedSessionId = sessionId.trim().ifBlank { DEFAULT_CONVERSATION_SESSION_ID }
+        if (normalizedSessionId == currentConversationSessionId) {
+            return
+        }
+        currentConversationSessionId = normalizedSessionId
+        currentAgent?.setConversationSessionId(normalizedSessionId)
+        restoredPersistentSessionKey = null
+        restoreCurrentSessionState(force = true)
+    }
     
     fun getCurrentProviderName(): String {
         return currentAgent?.providerName ?: "Unknown"
     }
-    
+
+    fun syncSelectedProviderAndModel(): Boolean {
+        val selectedProvider = Agents(appContext).getProvider()
+        if (currentAgent == null || selectedProvider != currentProviderId) {
+            return setProvider(selectedProvider)
+        }
+
+        reinitializeWithSelectedModel()
+        currentAgent?.setConversationSessionId(currentConversationSessionId)
+        currentAgent?.setContext(appContext)
+        currentProjectRoot?.let { root ->
+            val projectData = ProjectData(appContext)
+            val projectTree = projectData.showProjectTree(root)
+            currentAgent?.setProjectData(projectTree)
+        }
+        return currentAgent?.isInitialized() ?: false
+    }
+
     fun getAvailableProviders(): List<ProviderInfo> {
         return AIAgentRegistry.getAvailableProviders().mapNotNull { providerId ->
             val factory = AIAgentRegistry.getFactory(providerId)
@@ -188,7 +222,7 @@ class AIAgentManager(private val context: Context) {
 
     private fun currentSessionKey(): String {
         val projectKey = currentProjectRoot?.absolutePath ?: "__global__"
-        return "$projectKey|${buildProviderSessionIdentity()}"
+        return "$projectKey|session:$currentConversationSessionId|${buildProviderSessionIdentity()}"
     }
 
     private fun buildProviderSessionIdentity(): String {
@@ -295,7 +329,8 @@ class AIAgentManager(private val context: Context) {
     private fun isNonRetryableToolError(error: Throwable): Boolean {
         return error is ToolCallLoopException ||
             error is ToolProtocolException ||
-            error is ToolExecutionDisabledException
+            error is ToolExecutionDisabledException ||
+            error is ExternalEngineException
     }
 
     suspend fun executeRequest(userRequest: String, callback: AIAgentCallback) {
@@ -639,6 +674,18 @@ class AIAgentManager(private val context: Context) {
                         }
 
                         callback.onAssistantTextDelta(delta)
+                    }
+
+                    override fun onToolCallStarted(toolCall: AIToolCall) {
+                        callback.onToolCallStarted(toolCall)
+                    }
+
+                    override fun onToolCallOutput(toolCall: AIToolCall, chunk: String) {
+                        callback.onToolCallOutput(toolCall, chunk)
+                    }
+
+                    override fun onToolCallCompleted(result: AIToolExecutionResult) {
+                        callback.onToolCallCompleted(result)
                     }
                 }
             ) ?: Result.failure(Exception("No agent initialized"))

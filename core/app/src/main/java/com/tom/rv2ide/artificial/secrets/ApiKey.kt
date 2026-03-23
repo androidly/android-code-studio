@@ -17,6 +17,7 @@
 package com.tom.rv2ide.artificial.secrets
 
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
+import com.tom.rv2ide.artificial.agents.external.ExternalEngineConfig
 import com.tom.rv2ide.preferences.internal.prefManager
 
 /*
@@ -88,6 +89,14 @@ object ApiKey {
     fun hasCustomProviderConfig(): Boolean {
         return CustomProviderConfig.hasValidConfig()
     }
+
+    fun getExternalEngineCommandTemplate(): String {
+        return ExternalEngineConfig.getCommandTemplate()
+    }
+
+    fun hasExternalEngineConfig(): Boolean {
+        return ExternalEngineConfig.hasValidConfig()
+    }
     
     // Legacy methods for backward compatibility
     @Deprecated("Use getGeminiApiKey() instead", ReplaceWith("getGeminiApiKey()"))
@@ -104,6 +113,7 @@ object ApiKey {
         if (hasAnthropicKey()) providers.add("Anthropic")
         if (hasGrokKey()) providers.add("Grok")
         if (hasCustomProviderConfig()) providers.add("Custom")
+        if (hasExternalEngineConfig()) providers.add("External Engine")
         return providers
     }
     
@@ -115,13 +125,15 @@ object ApiKey {
             "deepseek" to getDeepseekApiKey(),
             "anthropic" to getAnthropicApiKey(),
             "grok" to getGrokApiKey(),
-            "custom" to getCustomApiKey()
+            "custom" to getCustomApiKey(),
+            "external" to getExternalEngineCommandTemplate()
         ).filterValues { it.isNotBlank() }
     }
     
     // Check if any API key is configured
     fun hasAnyApiKey(): Boolean {
         return hasGeminiKey() || hasOpenAIKey() || hasDeepseekKey() ||
-               hasAnthropicKey() || hasGrokKey() || hasCustomProviderConfig()
+               hasAnthropicKey() || hasGrokKey() || hasCustomProviderConfig() ||
+               hasExternalEngineConfig()
     }
 }

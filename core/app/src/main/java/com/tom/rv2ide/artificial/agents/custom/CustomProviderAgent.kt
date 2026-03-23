@@ -10,6 +10,7 @@ import com.tom.rv2ide.artificial.agents.NativeToolCallingAgent
 import com.tom.rv2ide.artificial.agents.NativeToolResult
 import com.tom.rv2ide.artificial.agents.NativeToolTurnResponse
 import com.tom.rv2ide.artificial.agents.PersistentConversationAgent
+import com.tom.rv2ide.artificial.agents.addBoundedModificationAttempt
 import com.tom.rv2ide.artificial.exceptions.InsufficientBalanceException
 import com.tom.rv2ide.artificial.exceptions.InvalidApiKeyException
 import com.tom.rv2ide.artificial.exceptions.QuotaExceededException
@@ -153,7 +154,7 @@ class CustomProviderAgent : AIAgent, NativeToolCallingAgent, PersistentConversat
     }
 
     override fun recordModification(filePath: String, oldContent: String?, newContent: String, success: Boolean) {
-        modificationHistory.add(
+        modificationHistory.addBoundedModificationAttempt(
             ModificationAttempt(
                 timestamp = System.currentTimeMillis(),
                 filePath = filePath,

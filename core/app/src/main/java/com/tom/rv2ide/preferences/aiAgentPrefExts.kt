@@ -27,7 +27,14 @@ import com.tom.rv2ide.R
 import com.tom.rv2ide.artificial.agents.Agents
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderProfile
+import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
+import com.tom.rv2ide.artificial.agents.external.CodexCliSettings
+import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
+import com.tom.rv2ide.artificial.agents.external.ExternalEngineConfig
+import com.tom.rv2ide.artificial.agents.external.ExternalEngineSettings
+import com.tom.rv2ide.artificial.dialogs.CodexCliConfigDialog
 import com.tom.rv2ide.artificial.dialogs.CustomProviderConfigDialog
+import com.tom.rv2ide.artificial.dialogs.ExternalEngineConfigDialog
 import com.tom.rv2ide.artificial.dialogs.ProviderSwitchDialog
 import com.tom.rv2ide.artificial.permissions.AIPermissionManager
 import com.tom.rv2ide.preferences.internal.prefManager
@@ -64,6 +71,7 @@ private val providerOptions =
         ProviderOption("deepseek", "DeepSeek"),
         ProviderOption("grok", "xAI Grok"),
         ProviderOption("localllm", "Local LLM"),
+        ProviderOption("external", "External Engine"),
         ProviderOption("custom", "Custom Provider"),
     )
 
@@ -77,6 +85,9 @@ private class AIAgentConfig(
   @IgnoredOnParcel private var providerPref: ProviderSelectionPreference? = null
   @IgnoredOnParcel private var modelPref: ModelSelectionPreference? = null
   @IgnoredOnParcel private var customProfilePref: CustomProfilePreference? = null
+  @IgnoredOnParcel private var externalEnginePref: ExternalEnginePreference? = null
+  @IgnoredOnParcel private var codexCliPref: CodexCliPreference? = null
+  @IgnoredOnParcel private var installCodexPref: InstallCodexTermuxPreference? = null
   @IgnoredOnParcel private var addCustomProfilePref: AddCustomProfilePreference? = null
   @IgnoredOnParcel private var editCustomProfilePref: EditCustomProfilePreference? = null
   @IgnoredOnParcel private var deleteCustomProfilePref: DeleteCustomProfilePreference? = null
@@ -94,6 +105,9 @@ private class AIAgentConfig(
     providerPref = ProviderSelectionPreference { refreshManagedPreferences() }
     modelPref = ModelSelectionPreference { refreshManagedPreferences() }
     customProfilePref = CustomProfilePreference { refreshManagedPreferences() }
+    externalEnginePref = ExternalEnginePreference { refreshManagedPreferences() }
+    codexCliPref = CodexCliPreference { refreshManagedPreferences() }
+    installCodexPref = InstallCodexTermuxPreference { refreshManagedPreferences() }
     addCustomProfilePref = AddCustomProfilePreference { refreshManagedPreferences() }
     editCustomProfilePref = EditCustomProfilePreference { refreshManagedPreferences() }
     deleteCustomProfilePref = DeleteCustomProfilePreference { refreshManagedPreferences() }
@@ -111,6 +125,9 @@ private class AIAgentConfig(
     addPreference(providerPref!!)
     addPreference(modelPref!!)
     addPreference(customProfilePref!!)
+    addPreference(externalEnginePref!!)
+    addPreference(codexCliPref!!)
+    addPreference(installCodexPref!!)
     addPreference(addCustomProfilePref!!)
     addPreference(editCustomProfilePref!!)
     addPreference(deleteCustomProfilePref!!)
@@ -136,6 +153,9 @@ private class AIAgentConfig(
         providerPref,
         modelPref,
         customProfilePref,
+        externalEnginePref,
+        codexCliPref,
+        installCodexPref,
         addCustomProfilePref,
         editCustomProfilePref,
         deleteCustomProfilePref,
@@ -300,6 +320,18 @@ private class ProviderSelectionPreference(
                 refresh()
               }
             }
+          } else if (option.id == "external") {
+            if (!ExternalEngineConfig.hasValidConfig()) {
+              showExternalEngineDialog(context) { savedSettings ->
+                applyProviderSelection(context, "external", savedSettings.resolvedDisplayLabel())
+                onChanged?.invoke()
+                refresh()
+              }
+            } else {
+              applyProviderSelection(context, "external", ExternalEngineConfig.getModelLabel())
+              onChanged?.invoke()
+              refresh()
+            }
           } else {
             applyProviderSelection(context, option.id)
             onChanged?.invoke()
@@ -314,10 +346,12 @@ private class ProviderSelectionPreference(
   private fun buildSummary(context: Context): String {
     val providerId = Agents(context).getProvider()
     val activeProfile = CustomProviderConfig.getActiveProfile()
-    return if (providerId == "custom" && activeProfile != null) {
-      "Current: ${providerDisplayName(providerId)} • ${activeProfile.name}"
-    } else {
-      "Current: ${providerDisplayName(providerId)}"
+    return when {
+      providerId == "custom" && activeProfile != null ->
+        "Current: ${providerDisplayName(providerId)} • ${activeProfile.name}"
+      providerId == "external" && ExternalEngineConfig.hasValidConfig() ->
+        "Current: ${providerDisplayName(providerId)} • ${ExternalEngineConfig.getModelLabel()}"
+      else -> "Current: ${providerDisplayName(providerId)}"
     }
   }
 
@@ -359,6 +393,14 @@ private class ModelSelectionPreference(
     val context = preference.context
     val agents = Agents(context)
     val providerId = agents.getProvider()
+    if (providerId == "external" && !ExternalEngineConfig.hasValidConfig()) {
+      showExternalEngineDialog(context) { savedSettings ->
+        applyProviderSelection(context, "external", savedSettings.resolvedDisplayLabel())
+        onChanged?.invoke()
+        refresh()
+      }
+      return true
+    }
     if (providerId == "custom") {
       val activeProfile = CustomProviderConfig.getActiveProfile()
       if (activeProfile == null) {
@@ -484,6 +526,161 @@ private class CustomProfilePreference(
 
   override fun setEnabled(enabled: Boolean) {
     preference?.isEnabled = enabled && CustomProviderConfig.hasProfiles()
+  }
+}
+
+@Parcelize
+private class ExternalEnginePreference(
+    override val key: String = "ai_agent_external_engine_config",
+    override val title: Int = string.ai_agent_title,
+    @IgnoredOnParcel private val onChanged: (() -> Unit)? = null,
+) : BasePreference(), ManagedAiPreference {
+
+  @IgnoredOnParcel private var preference: Preference? = null
+
+  override fun onCreatePreference(context: Context): Preference {
+    return androidx.preference.Preference(context)
+  }
+
+  override fun onCreateView(context: Context): Preference {
+    val pref = super.onCreateView(context)
+    preference = pref
+    return pref.apply {
+      title = "External Engine Bridge"
+      summary = buildSummary()
+      isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
+    }
+  }
+
+  override fun onPreferenceClick(preference: Preference): Boolean {
+    showExternalEngineDialog(preference.context) {
+      if (Agents(preference.context).getProvider() == "external") {
+        applyProviderSelection(preference.context, "external", it.resolvedDisplayLabel())
+      }
+      onChanged?.invoke()
+      refresh()
+    }
+    return true
+  }
+
+  private fun buildSummary(): String {
+    val codexStatus = CodexTermuxBridge.status()
+    if (!ExternalEngineConfig.hasValidConfig()) {
+      return codexStatus.summaryText()
+    }
+    val settings = ExternalEngineConfig.getSettings()
+    return listOf(
+        codexStatus.summaryText(),
+        settings.resolvedDisplayLabel(),
+        settings.workingDirectoryMode.displayName,
+        if (settings.passPromptViaStdin) "stdin on" else "stdin off"
+    ).joinToString(" • ")
+  }
+
+  override fun refresh() {
+    val pref = preference ?: return
+    pref.summary = buildSummary()
+    pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
+  }
+
+  override fun setEnabled(enabled: Boolean) {
+    preference?.isEnabled = enabled
+  }
+}
+
+@Parcelize
+private class CodexCliPreference(
+    override val key: String = "ai_agent_external_engine_codex_config",
+    override val title: Int = string.ai_agent_title,
+    @IgnoredOnParcel private val onChanged: (() -> Unit)? = null,
+) : BasePreference(), ManagedAiPreference {
+
+  @IgnoredOnParcel private var preference: Preference? = null
+
+  override fun onCreatePreference(context: Context): Preference {
+    return androidx.preference.Preference(context)
+  }
+
+  override fun onCreateView(context: Context): Preference {
+    val pref = super.onCreateView(context)
+    preference = pref
+    return pref.apply {
+      title = "Codex CLI Config"
+      summary = buildSummary()
+      isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
+    }
+  }
+
+  override fun onPreferenceClick(preference: Preference): Boolean {
+    showCodexCliDialog(preference.context) {
+      onChanged?.invoke()
+      refresh()
+    }
+    return true
+  }
+
+  private fun buildSummary(): String {
+    val settings = CodexCliConfig.getSettings()
+    return if (settings.isValid) {
+      settings.summaryText()
+    } else {
+      "Configure provider ID, base URL, key, and model for the Termux Codex bridge"
+    }
+  }
+
+  override fun refresh() {
+    val pref = preference ?: return
+    pref.summary = buildSummary()
+    pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
+  }
+
+  override fun setEnabled(enabled: Boolean) {
+    preference?.isEnabled = enabled
+  }
+}
+
+@Parcelize
+private class InstallCodexTermuxPreference(
+    override val key: String = "ai_agent_external_engine_install_codex",
+    override val title: Int = string.ai_agent_title,
+    @IgnoredOnParcel private val onChanged: (() -> Unit)? = null,
+) : BasePreference(), ManagedAiPreference {
+
+  @IgnoredOnParcel private var preference: Preference? = null
+
+  override fun onCreatePreference(context: Context): Preference {
+    return androidx.preference.Preference(context)
+  }
+
+  override fun onCreateView(context: Context): Preference {
+    val pref = super.onCreateView(context)
+    preference = pref
+    return pref.apply {
+      title = "Install Codex CLI"
+      summary = CodexTermuxBridge.status().summaryText()
+      isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
+    }
+  }
+
+  override fun onPreferenceClick(preference: Preference): Boolean {
+    CodexTermuxBridge.installAndConfigure(
+        context = preference.context,
+        selectProvider = true
+    )
+    onChanged?.invoke()
+    refresh()
+    showToast(preference.context, "Opened Codex CLI installer and applied the preset")
+    return true
+  }
+
+  override fun refresh() {
+    val pref = preference ?: return
+    pref.summary = CodexTermuxBridge.status().summaryText()
+    pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
+  }
+
+  override fun setEnabled(enabled: Boolean) {
+    preference?.isEnabled = enabled
   }
 }
 
@@ -647,6 +844,9 @@ private fun applyProviderSelection(context: Context, providerId: String, preferr
       if (providerId == "custom") {
         preferredModel?.takeIf { it.isNotBlank() }
             ?: CustomProviderConfig.getModelId().ifBlank { CustomProviderConfig.getAvailableModels().firstOrNull().orEmpty() }
+      } else if (providerId == "external") {
+        preferredModel?.takeIf { it.isNotBlank() }
+            ?: ExternalEngineConfig.getModelLabel()
       } else {
         preferredModel?.takeIf { agents.isValidModelForProvider(it, providerId) }
             ?: agents.getModelsForProvider(providerId).firstOrNull().orEmpty()
@@ -669,6 +869,32 @@ private fun showCustomProviderDialog(
   }
   CustomProviderConfigDialog(profileId = profileId, createNew = createNew, onSave = onSave)
       .show(activity.supportFragmentManager, "CustomProviderConfigDialog")
+}
+
+private fun showExternalEngineDialog(
+    context: Context,
+    onSave: (ExternalEngineSettings) -> Unit,
+) {
+  val activity = context.findFragmentActivity()
+  if (activity == null) {
+    showToast(context, "Unable to open the External Engine editor from this screen")
+    return
+  }
+  ExternalEngineConfigDialog(onSave = onSave)
+      .show(activity.supportFragmentManager, "ExternalEngineConfigDialog")
+}
+
+private fun showCodexCliDialog(
+    context: Context,
+    onSave: (CodexCliSettings) -> Unit,
+) {
+  val activity = context.findFragmentActivity()
+  if (activity == null) {
+    showToast(context, "Unable to open the Codex CLI editor from this screen")
+    return
+  }
+  CodexCliConfigDialog(onSave = onSave)
+      .show(activity.supportFragmentManager, "CodexCliConfigDialog")
 }
 
 private fun showToast(context: Context, message: String) {

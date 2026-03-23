@@ -46,6 +46,7 @@ import com.tom.rv2ide.events.AppEventsIndex
 import com.tom.rv2ide.events.EditorEventsIndex
 import com.tom.rv2ide.events.LspApiEventsIndex
 import com.tom.rv2ide.events.LspJavaEventsIndex
+import com.tom.rv2ide.fragments.assistant.AIAssistantRichTextRenderer
 import com.tom.rv2ide.preferences.internal.DevOpsPreferences
 import com.tom.rv2ide.preferences.internal.GeneralPreferences
 import com.tom.rv2ide.preferences.internal.StatPreferences
@@ -155,6 +156,16 @@ class IDEApplication : TermuxApplication() {
 
     // DISABLED: Plugin system completely disabled to prevent Tooling API issues
     // initializePluginSystem()
+  }
+
+  override fun onTrimMemory(level: Int) {
+    super.onTrimMemory(level)
+    AIAssistantRichTextRenderer.trimMemory(level)
+  }
+
+  override fun onLowMemory() {
+    super.onLowMemory()
+    AIAssistantRichTextRenderer.clearCaches(cancelJobs = true)
   }
 
   /**

@@ -21,6 +21,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
+import com.tom.rv2ide.artificial.agents.external.ExternalEngineConfig
 
 /**
  * @author Mohammed-baqer-null @ https://github.com/Mohammed-baqer-null
@@ -145,11 +146,17 @@ class Agents(ctx: Context) {
     "local-model"
   )
 
+  private val external_engine_models: Array<String>
+    get() = ExternalEngineConfig.getModelLabel()
+      .takeIf { ExternalEngineConfig.hasValidConfig() && it.isNotBlank() }
+      ?.let { arrayOf(it) }
+      ?: emptyArray()
+
   private val custom_provider_models: Array<String>
     get() = CustomProviderConfig.getAvailableModels().toTypedArray()
   
   val ai_agents: Array<String>
-    get() = openai_models + claude_models + gemini_models + deepseek_models + grok_models + localllm_models + custom_provider_models
+    get() = openai_models + claude_models + gemini_models + deepseek_models + grok_models + localllm_models + external_engine_models + custom_provider_models
   
   fun getModelsForProvider(providerId: String): Array<String> {
     return when(providerId) {
@@ -159,6 +166,7 @@ class Agents(ctx: Context) {
       "deepseek" -> deepseek_models
       "grok" -> grok_models
       "localllm" -> localllm_models
+      "external" -> external_engine_models
       "custom" -> custom_provider_models
       else -> gemini_models
     }
@@ -169,12 +177,15 @@ class Agents(ctx: Context) {
     return when {
       currentProvider == "custom" &&
         (modelName in custom_provider_models || modelName == CustomProviderConfig.getModelId()) -> "custom"
+      currentProvider == "external" &&
+        (modelName in external_engine_models || modelName == ExternalEngineConfig.getModelLabel()) -> "external"
       modelName in openai_models -> "openai"
       modelName in gemini_models -> "gemini"
       modelName in claude_models -> "claude"
       modelName in deepseek_models -> "deepseek"
       modelName in grok_models -> "grok"
       modelName in localllm_models -> "localllm"
+      modelName in external_engine_models || modelName == ExternalEngineConfig.getModelLabel() -> "external"
       modelName in custom_provider_models || modelName == CustomProviderConfig.getModelId() -> "custom"
       else -> null
     }
@@ -184,12 +195,14 @@ class Agents(ctx: Context) {
       val currentProvider = sp.getString(PROVIDER_KEY, "gemini") ?: "gemini"
       val provider = when {
           currentProvider == "custom" && name.isNotBlank() -> "custom"
+          currentProvider == "external" && name.isNotBlank() -> "external"
           name in openai_models -> "openai"
           name in gemini_models -> "gemini"
           name in claude_models -> "claude"
           name in deepseek_models -> "deepseek"
           name in grok_models -> "grok"
           name in localllm_models -> "localllm"
+          name in external_engine_models -> "external"
           name in custom_provider_models -> "custom"
           else -> currentProvider
       }
@@ -204,6 +217,8 @@ class Agents(ctx: Context) {
   
   fun getAgent(): String {
     return when (getProvider()) {
+      "external" -> ExternalEngineConfig.getModelLabel()
+        .ifBlank { external_engine_models.firstOrNull() ?: "" }
       "custom" -> CustomProviderConfig.getModelId()
         .ifBlank { custom_provider_models.firstOrNull() ?: "" }
       else -> {
@@ -218,6 +233,7 @@ class Agents(ctx: Context) {
       "deepseek" -> "deepseek-chat"
       "grok" -> "grok-beta"
       "localllm" -> "local-model"
+      "external" -> ExternalEngineConfig.getModelLabel().ifBlank { "External CLI" }
       else -> "gemini-2.5-pro"
         }
       }
@@ -233,7 +249,7 @@ class Agents(ctx: Context) {
   }
   
   fun isValidModelForProvider(modelName: String, providerId: String): Boolean {
-    if (providerId == "custom") {
+    if (providerId == "custom" || providerId == "external") {
       return modelName.isNotBlank()
     }
     return modelName in getModelsForProvider(providerId)

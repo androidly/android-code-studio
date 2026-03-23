@@ -18,8 +18,10 @@
 package com.tom.rv2ide.artificial.agents
 
 import android.content.Context
-import com.tom.rv2ide.artificial.project.awareness.ProjectTreeResult
 import com.tom.rv2ide.artificial.file.FileWriteResult
+import com.tom.rv2ide.artificial.project.awareness.ProjectTreeResult
+import com.tom.rv2ide.artificial.tools.AIToolCall
+import com.tom.rv2ide.artificial.tools.AIToolExecutionResult
 
 /*
  * @author Mohammed-baqer-null @ https://github.com/Mohammed-baqer-null
@@ -33,6 +35,7 @@ interface AIAgent {
     fun reinitializeWithNewModel(apiKey: String, context: Context)
     fun setContext(context: Context)
     fun setProjectData(projectTreeResult: ProjectTreeResult)
+    fun setConversationSessionId(sessionId: String) {}
     fun clearConversation()
     
     suspend fun generateCode(
@@ -88,8 +91,35 @@ data class ModificationAttempt(
     val success: Boolean = false
 )
 
+fun MutableList<ModificationAttempt>.addBoundedModificationAttempt(
+    attempt: ModificationAttempt,
+    maxEntries: Int = 16,
+    maxRetainedChars: Int = 1_500_000
+) {
+    add(attempt)
+    while (size > maxEntries) {
+        removeAt(0)
+    }
+    while (size > 1 && sumOf(ModificationAttempt::estimatedRetainedChars) > maxRetainedChars) {
+        removeAt(0)
+    }
+}
+
+private fun ModificationAttempt.estimatedRetainedChars(): Int {
+    return filePath.length +
+        (previousContent?.length ?: 0) +
+        newContent.length +
+        64
+}
+
 interface AIAgentStreamListener {
     fun onTextDelta(delta: String)
 
     fun onCompleted(fullResponse: String) {}
+
+    fun onToolCallStarted(toolCall: AIToolCall) {}
+
+    fun onToolCallOutput(toolCall: AIToolCall, chunk: String) {}
+
+    fun onToolCallCompleted(result: AIToolExecutionResult) {}
 }

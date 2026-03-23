@@ -180,5 +180,19 @@ public final class TermuxPreferenceConstants {
     public static final String KEY_CRASH_REPORT_NOTIFICATIONS_ENABLED = "crash_report_notifications_enabled";
     public static final boolean DEFAULT_VALUE_CRASH_REPORT_NOTIFICATIONS_ENABLED = true;
 
+    /**
+     * Defines the key for a custom main package repository base url. Leave empty to use the
+     * default repository for the current build/package.
+     */
+    public static final String KEY_MAIN_PACKAGE_REPOSITORY_URL = "main_package_repository_url";
+    public static final String DEFAULT_VALUE_MAIN_PACKAGE_REPOSITORY_URL = "";
+
+    /**
+     * Defines the key for a custom npm registry url used by optional CLI installers like Codex.
+     * Leave empty to use the default upstream npm registry.
+     */
+    public static final String KEY_NPM_REGISTRY_URL = "npm_registry_url";
+    public static final String DEFAULT_VALUE_NPM_REGISTRY_URL = "";
+
   }
 }

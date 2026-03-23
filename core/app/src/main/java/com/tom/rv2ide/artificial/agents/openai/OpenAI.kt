@@ -36,6 +36,7 @@ import com.tom.rv2ide.artificial.agents.AIAgent
 import com.tom.rv2ide.artificial.agents.AIAgentRegistry
 import com.tom.rv2ide.artificial.secrets.ApiKey
 import com.tom.rv2ide.artificial.agents.ModificationAttempt
+import com.tom.rv2ide.artificial.agents.addBoundedModificationAttempt
 
 /*
  * @author Mohammed-baqer-null @ https://github.com/Mohammed-baqer-null
@@ -116,7 +117,7 @@ class OpenAI : AIAgent {
   }
 
   override fun recordModification(filePath: String, oldContent: String?, newContent: String, success: Boolean) {
-    modificationHistory.add(
+    modificationHistory.addBoundedModificationAttempt(
         ModificationAttempt(
             timestamp = System.currentTimeMillis(),
             filePath = filePath,

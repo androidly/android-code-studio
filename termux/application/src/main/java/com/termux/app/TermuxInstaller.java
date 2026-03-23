@@ -25,12 +25,14 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxUtils;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.file.TermuxFileUtils;
+import com.termux.shared.termux.repository.TermuxPackageRepository;
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -58,7 +60,6 @@ import java.util.zip.ZipInputStream;
 public final class TermuxInstaller {
 
     private static final String LOG_TAG = "TermuxInstaller";
-
     /** Performs bootstrap setup if necessary. */
     static void setupBootstrapIfNeeded(final Activity activity, final Runnable whenDone) {
         String bootstrapErrorMessage;
@@ -104,6 +105,7 @@ public final class TermuxInstaller {
             if (TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
                 Logger.logInfo(LOG_TAG, "The termux prefix directory \"" + TERMUX_PREFIX_DIR_PATH + "\" exists but is empty or only contains specific unimportant files.");
             } else {
+                repairAptSourcesIfNeeded(activity);
                 whenDone.run();
                 return;
             }
@@ -217,6 +219,7 @@ public final class TermuxInstaller {
 
                     // Recreate env file since termux prefix was wiped earlier
                     TermuxShellEnvironment.writeEnvironmentToFile(activity);
+                    repairAptSourcesIfNeeded(activity);
 
                     activity.runOnUiThread(whenDone);
 
@@ -370,6 +373,72 @@ public final class TermuxInstaller {
 
     private static Error ensureDirectoryExists(File directory) {
         return FileUtils.createDirectoryFile(directory.getAbsolutePath());
+    }
+
+    private static void repairAptSourcesIfNeeded(Context context) {
+        final File sourcesFile = new File(TermuxConstants.TERMUX_ETC_PREFIX_DIR_PATH, "apt/sources.list");
+        final String sourcesPath = sourcesFile.getAbsolutePath();
+        final String expectedSources = TermuxPackageRepository.getExpectedMainSources(context);
+
+        String currentSources = null;
+        if (FileUtils.regularFileExists(sourcesPath, false)) {
+            final StringBuilder builder = new StringBuilder();
+            final Error readError = FileUtils.readTextFromFile(
+                "termux apt sources list",
+                sourcesPath,
+                StandardCharsets.UTF_8,
+                builder,
+                false
+            );
+            if (readError != null) {
+                Logger.logErrorExtended(LOG_TAG, "Failed to read termux apt sources list:\n" + Error.getErrorMarkdownString(readError));
+                return;
+            }
+            currentSources = builder.toString();
+        }
+
+        final boolean shouldRepair =
+            currentSources == null ||
+                currentSources.trim().isEmpty() ||
+                !TermuxPackageRepository.matchesExpectedMainSources(context, currentSources);
+        if (!shouldRepair) {
+            return;
+        }
+
+        final Error directoryError = ensureDirectoryExists(sourcesFile.getParentFile());
+        if (directoryError != null) {
+            Logger.logErrorExtended(LOG_TAG, "Failed to prepare apt sources directory:\n" + Error.getErrorMarkdownString(directoryError));
+            return;
+        }
+
+        final Error writeError = FileUtils.writeTextToFile(
+            "termux apt sources list",
+            sourcesPath,
+            StandardCharsets.UTF_8,
+            expectedSources,
+            false
+        );
+        if (writeError != null) {
+            Logger.logErrorExtended(LOG_TAG, "Failed to repair termux apt sources list:\n" + Error.getErrorMarkdownString(writeError));
+            return;
+        }
+
+        final File aptListsDirectory = new File(TermuxConstants.TERMUX_VAR_PREFIX_DIR_PATH, "lib/apt/lists");
+        if (FileUtils.directoryFileExists(aptListsDirectory.getAbsolutePath(), false)) {
+            final Error clearError = FileUtils.clearDirectory("termux apt package lists", aptListsDirectory.getAbsolutePath());
+            if (clearError != null) {
+                Logger.logErrorExtended(LOG_TAG, "Failed to clear cached apt package lists after sources repair:\n" + Error.getErrorMarkdownString(clearError));
+            }
+        }
+
+        Logger.logInfo(
+            LOG_TAG,
+            "Repaired Termux apt sources list to \"" +
+                TermuxPackageRepository.getEffectiveMainRepo(context) +
+                "\" for package \"" +
+                TermuxConstants.TERMUX_PACKAGE_NAME +
+                "\"."
+        );
     }
 
     public static byte[] loadZipBytes() {

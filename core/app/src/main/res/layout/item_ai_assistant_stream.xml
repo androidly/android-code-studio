@@ -82,11 +82,13 @@
                     android:textStyle="bold"
                     android:visibility="gone" />
 
-                <LinearLayout
-                    android:id="@+id/streamAttachmentContainer"
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/streamAttachmentRecyclerView"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:overScrollMode="never"
                     android:visibility="gone" />
 
                 <com.google.android.material.progressindicator.LinearProgressIndicator

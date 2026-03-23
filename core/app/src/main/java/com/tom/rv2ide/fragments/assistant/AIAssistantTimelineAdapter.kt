@@ -1,15 +1,14 @@
 package com.tom.rv2ide.fragments.assistant
 
-import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.AttrRes
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
@@ -25,7 +24,7 @@ class AIAssistantTimelineAdapter(
         setHasStableIds(true)
     }
 
-    fun getItemsSnapshot(): List<AIAssistantTimelineItem> = currentList.toList()
+    fun getItemsSnapshot(): List<AIAssistantTimelineItem> = currentList
 
     fun getItemAt(position: Int): AIAssistantTimelineItem? = currentList.getOrNull(position)
 
@@ -33,7 +32,7 @@ class AIAssistantTimelineAdapter(
         newItems: List<AIAssistantTimelineItem>,
         onCommitted: (() -> Unit)? = null
     ) {
-        submitList(newItems.toList()) {
+        submitList(newItems) {
             onCommitted?.invoke()
         }
     }
@@ -69,18 +68,50 @@ class AIAssistantTimelineAdapter(
             is AIAssistantHistoryDividerItem -> (holder as HistoryDividerViewHolder).bind(item)
             is AIAssistantStreamingResponseItem -> (holder as StreamingResponseViewHolder).bind(item)
             is AIAssistantUserItem -> (holder as UserViewHolder).bind(item)
-            is AIAssistantResponseItem -> (holder as MessageViewHolder).bind("Assistant", item.response)
-            is AIAssistantWelcomeItem -> (holder as MessageViewHolder).bind(item.title, item.body)
+            is AIAssistantResponseItem -> (holder as MessageViewHolder).bind("Assistant", item.response, item.id)
+            is AIAssistantWelcomeItem -> (holder as MessageViewHolder).bind(item.title, item.body, item.id)
             is AIAssistantDiffItem -> (holder as DiffViewHolder).bind(item)
             is AIAssistantStatusItem -> (holder as StatusViewHolder).bind(item)
         }
+    }
+
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        when (holder) {
+            is UserViewHolder -> holder.recycle()
+            is MessageViewHolder -> holder.recycle()
+            is StreamingResponseViewHolder -> holder.recycle()
+            is StatusViewHolder -> holder.recycle()
+            else -> Unit
+        }
+        super.onViewRecycled(holder)
+    }
+
+    override fun onViewDetachedFromWindow(holder: RecyclerView.ViewHolder) {
+        when (holder) {
+            is UserViewHolder -> holder.detach()
+            is MessageViewHolder -> holder.detach()
+            is StreamingResponseViewHolder -> holder.detach()
+            is StatusViewHolder -> holder.detach()
+            else -> Unit
+        }
+        super.onViewDetachedFromWindow(holder)
     }
 
     private class UserViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val body = itemView.findViewById<TextView>(R.id.promptText)
 
         fun bind(item: AIAssistantUserItem) {
-            AIAssistantRichTextRenderer.render(body, item.prompt)
+            AIAssistantRichTextRenderer.render(body, item.prompt, messageId = item.id)
+        }
+
+        fun recycle() {
+            AIAssistantRichTextRenderer.cancel(body)
+            body.text = ""
+            body.tag = null
+        }
+
+        fun detach() {
+            AIAssistantRichTextRenderer.cancel(body)
         }
     }
 
@@ -102,9 +133,19 @@ class AIAssistantTimelineAdapter(
         private val title = itemView.findViewById<TextView>(R.id.titleText)
         private val body = itemView.findViewById<TextView>(R.id.bodyText)
 
-        fun bind(header: String, content: String) {
+        fun bind(header: String, content: String, itemId: Long) {
             title.text = header
-            AIAssistantRichTextRenderer.render(body, content)
+            AIAssistantRichTextRenderer.render(body, content, messageId = itemId)
+        }
+
+        fun recycle() {
+            AIAssistantRichTextRenderer.cancel(body)
+            body.text = ""
+            body.tag = null
+        }
+
+        fun detach() {
+            AIAssistantRichTextRenderer.cancel(body)
         }
     }
 
@@ -114,9 +155,21 @@ class AIAssistantTimelineAdapter(
         private val status = itemView.findViewById<TextView>(R.id.streamStatus)
         private val body = itemView.findViewById<TextView>(R.id.streamBody)
         private val attachmentLabel = itemView.findViewById<TextView>(R.id.streamAttachmentLabel)
-        private val attachmentContainer = itemView.findViewById<LinearLayout>(R.id.streamAttachmentContainer)
+        private val attachmentRecyclerView = itemView.findViewById<RecyclerView>(R.id.streamAttachmentRecyclerView)
         private val progress = itemView.findViewById<LinearProgressIndicator>(R.id.streamProgress)
+        private val attachmentAdapter = AIAssistantAttachmentAdapter()
         private var lastAttachmentSignature: String? = null
+
+        init {
+            attachmentRecyclerView.apply {
+                layoutManager = LinearLayoutManager(itemView.context)
+                adapter = attachmentAdapter
+                itemAnimator = null
+                isNestedScrollingEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+                setRecycledViewPool(toolAttachmentViewPool)
+            }
+        }
 
         fun bind(item: AIAssistantStreamingResponseItem) {
             title.text = item.header
@@ -140,11 +193,12 @@ class AIAssistantTimelineAdapter(
             AIAssistantRichTextRenderer.render(
                 body,
                 bodyText,
+                messageId = item.id,
                 isStreaming = hasResponse && item.isStreaming
             )
             bindAttachmentsIfNeeded(item.attachments)
             attachmentLabel.isVisible = item.attachments.isNotEmpty()
-            attachmentContainer.isVisible = item.attachments.isNotEmpty()
+            attachmentRecyclerView.isVisible = item.attachments.isNotEmpty()
             progress.isVisible = item.isStreaming
         }
 
@@ -154,125 +208,20 @@ class AIAssistantTimelineAdapter(
                 return
             }
             lastAttachmentSignature = nextSignature
-            attachmentContainer.removeAllViews()
-            if (attachments.isEmpty()) {
-                return
-            }
-
-            val inflater = LayoutInflater.from(itemView.context)
-            attachments.forEach { attachment ->
-                val attachmentView = inflater.inflate(
-                    R.layout.item_ai_assistant_tool_attachment,
-                    attachmentContainer,
-                    false
-                )
-                bindAttachmentView(attachmentView, attachment)
-                attachmentContainer.addView(attachmentView)
-            }
+            attachmentAdapter.replaceAll(attachments)
         }
 
-        private fun bindAttachmentView(root: View, item: AIAssistantToolItem) {
-            val card = root.findViewById<MaterialCardView>(R.id.attachmentCard)
-            val title = root.findViewById<TextView>(R.id.attachmentTitle)
-            val phase = root.findViewById<TextView>(R.id.attachmentPhase)
-            val stageTrail = root.findViewById<TextView>(R.id.attachmentStageTrail)
-            val summary = root.findViewById<TextView>(R.id.attachmentSummary)
-            val progress = root.findViewById<LinearProgressIndicator>(R.id.attachmentProgress)
-            val commandLabel = root.findViewById<TextView>(R.id.attachmentCommandLabel)
-            val command = root.findViewById<TextView>(R.id.attachmentCommand)
-            val workingDirectory = root.findViewById<TextView>(R.id.attachmentWorkdir)
-            val outputLabel = root.findViewById<TextView>(R.id.attachmentOutputLabel)
-            val output = root.findViewById<TextView>(R.id.attachmentOutput)
-
-            command.typeface = Typeface.MONOSPACE
-            workingDirectory.typeface = Typeface.MONOSPACE
-            output.typeface = Typeface.MONOSPACE
-
-            title.text = item.title
-            phase.text = item.stage.label
-            stageTrail.text = item.stageTrail
-            summary.text = item.summary
-            command.text = item.command.orEmpty()
-            workingDirectory.text = item.workingDirectory?.let { "cwd  $it" }.orEmpty()
-            output.text = if (item.stage == AIAssistantToolStage.STREAMING && !item.outputPreview.isNullOrBlank()) {
-                item.outputPreview + "\n▍"
-            } else {
-                item.outputPreview.orEmpty()
-            }
-            stageTrail.isVisible = item.stageTrail.isNotBlank()
-            commandLabel.isVisible = !item.command.isNullOrBlank()
-            command.isVisible = !item.command.isNullOrBlank()
-            workingDirectory.isVisible = !item.workingDirectory.isNullOrBlank()
-            outputLabel.text = if (item.stage == AIAssistantToolStage.STREAMING) "Live output" else "Output"
-            outputLabel.isVisible = !item.outputPreview.isNullOrBlank()
-            output.isVisible = !item.outputPreview.isNullOrBlank()
-            progress.isVisible = item.isLive
-            progress.setIndicatorColor(MaterialColors.getColor(root, androidx.appcompat.R.attr.colorPrimary, 0))
-
-            val palette = when (item.stage) {
-                AIAssistantToolStage.PLANNED -> ToolPalette(
-                    containerAttr = com.google.android.material.R.attr.colorSurfaceContainerHigh,
-                    textAttr = com.google.android.material.R.attr.colorOnSurface,
-                    chipContainerAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest,
-                    chipTextAttr = com.google.android.material.R.attr.colorOnSurface
-                )
-                AIAssistantToolStage.RUNNING -> ToolPalette(
-                    containerAttr = com.google.android.material.R.attr.colorSecondaryContainer,
-                    textAttr = com.google.android.material.R.attr.colorOnSecondaryContainer,
-                    chipContainerAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest,
-                    chipTextAttr = com.google.android.material.R.attr.colorOnSurface
-                )
-                AIAssistantToolStage.STREAMING -> ToolPalette(
-                    containerAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest,
-                    textAttr = com.google.android.material.R.attr.colorOnSurface,
-                    chipContainerAttr = com.google.android.material.R.attr.colorSecondaryContainer,
-                    chipTextAttr = com.google.android.material.R.attr.colorOnSecondaryContainer
-                )
-                AIAssistantToolStage.COMPLETED -> ToolPalette(
-                    containerAttr = com.google.android.material.R.attr.colorPrimaryContainer,
-                    textAttr = com.google.android.material.R.attr.colorOnPrimaryContainer,
-                    chipContainerAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest,
-                    chipTextAttr = com.google.android.material.R.attr.colorOnSurface
-                )
-                AIAssistantToolStage.FAILED -> ToolPalette(
-                    containerAttr = com.google.android.material.R.attr.colorErrorContainer,
-                    textAttr = com.google.android.material.R.attr.colorOnErrorContainer,
-                    chipContainerAttr = com.google.android.material.R.attr.colorErrorContainer,
-                    chipTextAttr = com.google.android.material.R.attr.colorOnErrorContainer
-                )
-                AIAssistantToolStage.CANCELLED -> ToolPalette(
-                    containerAttr = com.google.android.material.R.attr.colorTertiaryContainer,
-                    textAttr = com.google.android.material.R.attr.colorOnTertiaryContainer,
-                    chipContainerAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest,
-                    chipTextAttr = com.google.android.material.R.attr.colorOnSurface
-                )
-            }
-            applyCardTone(
-                card,
-                root,
-                palette.containerAttr,
-                palette.textAttr,
-                title,
-                stageTrail,
-                summary,
-                commandLabel,
-                command,
-                workingDirectory,
-                outputLabel,
-                output
-            )
-            phase.backgroundTintList = ColorStateList.valueOf(
-                MaterialColors.getColor(root, palette.chipContainerAttr, 0)
-            )
-            phase.setTextColor(MaterialColors.getColor(root, palette.chipTextAttr, 0))
+        fun recycle() {
+            AIAssistantRichTextRenderer.cancel(body)
+            body.text = ""
+            attachmentAdapter.replaceAll(emptyList())
+            lastAttachmentSignature = null
+            body.tag = null
         }
 
-        private data class ToolPalette(
-            @AttrRes val containerAttr: Int,
-            @AttrRes val textAttr: Int,
-            @AttrRes val chipContainerAttr: Int,
-            @AttrRes val chipTextAttr: Int
-        )
+        fun detach() {
+            AIAssistantRichTextRenderer.cancel(body)
+        }
     }
 
     private class StatusViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -290,8 +239,18 @@ class AIAssistantTimelineAdapter(
                 AIAssistantTone.NEUTRAL -> com.google.android.material.R.attr.colorSurfaceContainerHighest to com.google.android.material.R.attr.colorOnSurface
             }
             applyCardTone(card, itemView, containerAttr, textAttr, title, body)
-            AIAssistantRichTextRenderer.render(body, item.body.orEmpty())
+            AIAssistantRichTextRenderer.render(body, item.body.orEmpty(), messageId = item.id)
             body.isVisible = !item.body.isNullOrBlank()
+        }
+
+        fun recycle() {
+            AIAssistantRichTextRenderer.cancel(body)
+            body.text = ""
+            body.tag = null
+        }
+
+        fun detach() {
+            AIAssistantRichTextRenderer.cancel(body)
         }
     }
 
@@ -327,6 +286,7 @@ class AIAssistantTimelineAdapter(
         private const val VIEW_TYPE_HISTORY = 3
         private const val VIEW_TYPE_DIFF = 4
         private const val VIEW_TYPE_STREAMING_RESPONSE = 5
+        private val toolAttachmentViewPool = RecyclerView.RecycledViewPool()
         private val TimelineDiffCallback = object : DiffUtil.ItemCallback<AIAssistantTimelineItem>() {
             override fun areItemsTheSame(
                 oldItem: AIAssistantTimelineItem,

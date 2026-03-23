@@ -17,7 +17,24 @@
 
 @file:Suppress("UnstableApiUsage")
 
+import java.io.File
+
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+
+fun syncLocalPropertiesIfChanged(source: File, target: File) {
+  if (!source.exists()) {
+    return
+  }
+
+  val needsSync =
+      !target.exists() ||
+          source.length() != target.length() ||
+          !source.readBytes().contentEquals(target.readBytes())
+
+  if (needsSync) {
+    source.copyTo(target, overwrite = true)
+  }
+}
 
 pluginManagement {
   repositories {
@@ -55,7 +72,8 @@ rootProject.name = "build-deps-common"
 gradle.rootProject {
 
   // required for setting SDK location for android modules
-  project.file("../../local.properties")
-    .takeIf { it.exists() }
-    ?.copyTo(project.file("local.properties"), overwrite = true)
+  syncLocalPropertiesIfChanged(
+      source = project.file("../../local.properties"),
+      target = project.file("local.properties"),
+  )
 }

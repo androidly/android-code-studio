@@ -19,7 +19,12 @@ import com.tom.rv2ide.R
 import com.tom.rv2ide.artificial.agents.AIAgentManager
 import com.tom.rv2ide.artificial.agents.Agents
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
+import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
+import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
+import com.tom.rv2ide.artificial.agents.external.ExternalEngineConfig
+import com.tom.rv2ide.artificial.dialogs.CodexCliConfigDialog
 import com.tom.rv2ide.artificial.dialogs.CustomProviderConfigDialog
+import com.tom.rv2ide.artificial.dialogs.ExternalEngineConfigDialog
 import com.tom.rv2ide.artificial.dialogs.ProviderSwitchDialog
 import com.tom.rv2ide.artificial.permissions.AIPermissionManager
 import com.tom.rv2ide.managers.CodeCompletionManager
@@ -43,6 +48,12 @@ class AIPreferencesFragment(
     private lateinit var currentProviderText: MaterialTextView
     private lateinit var currentModelText: MaterialTextView
     private lateinit var customSection: LinearLayout
+    private lateinit var externalSection: LinearLayout
+    private lateinit var externalEngineSummaryText: MaterialTextView
+    private lateinit var codexConfigSummaryText: MaterialTextView
+    private lateinit var installCodexButton: MaterialButton
+    private lateinit var configureCodexButton: MaterialButton
+    private lateinit var configureExternalEngineButton: MaterialButton
     private lateinit var addCustomProfileButton: MaterialButton
     private lateinit var editCustomProfileButton: MaterialButton
     private lateinit var deleteCustomProfileButton: MaterialButton
@@ -69,9 +80,11 @@ class AIPreferencesFragment(
         setupProviderDropdown()
         setupModelDropdown()
         setupCustomProfileSection()
+        setupExternalEngineSection()
         setupToggles()
         updateCurrentStatus()
         updateCustomSectionVisibility()
+        updateExternalSection()
         startCompletionStateMonitoring()
     }
 
@@ -83,6 +96,7 @@ class AIPreferencesFragment(
         updateCustomProfileDropdown()
         updateModelDropdown()
         updateCustomSectionVisibility()
+        updateExternalSection()
         syncCodeCompletionToggle()
     }
     
@@ -101,13 +115,19 @@ class AIPreferencesFragment(
         currentProviderText = view.findViewById(R.id.currentProviderText)
         currentModelText = view.findViewById(R.id.currentModelText)
         customSection = view.findViewById(R.id.customSection)
+        externalSection = view.findViewById(R.id.externalSection)
+        externalEngineSummaryText = view.findViewById(R.id.externalEngineSummaryText)
+        codexConfigSummaryText = view.findViewById(R.id.codexConfigSummaryText)
+        installCodexButton = view.findViewById(R.id.installCodexButton)
+        configureCodexButton = view.findViewById(R.id.configureCodexButton)
+        configureExternalEngineButton = view.findViewById(R.id.configureExternalEngineButton)
         addCustomProfileButton = view.findViewById(R.id.addCustomProfileButton)
         editCustomProfileButton = view.findViewById(R.id.editCustomProfileButton)
         deleteCustomProfileButton = view.findViewById(R.id.deleteCustomProfileButton)
     }
 
     private fun setupProviderDropdown() {
-        val allProviderIds = listOf("gemini", "openai", "claude", "deepseek", "grok", "localllm", "custom")
+        val allProviderIds = listOf("gemini", "openai", "claude", "deepseek", "grok", "localllm", "external", "custom")
         val providerNames = allProviderIds.map(::providerDisplayName)
         
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, providerNames)
@@ -122,6 +142,13 @@ class AIPreferencesFragment(
             if (selectedProviderId == "localllm") {
                 updateProviderDropdownSelection()
                 showLocalLLMConfigDialog(selectedProviderName)
+            } else if (selectedProviderId == "external") {
+                if (!ExternalEngineConfig.hasValidConfig()) {
+                    updateProviderDropdownSelection()
+                    showExternalEngineConfigDialog(selectAfterSave = true)
+                } else {
+                    handleProviderChange("external", selectedProviderName, ExternalEngineConfig.getModelLabel())
+                }
             } else if (selectedProviderId == "custom") {
                 val activeProfile = CustomProviderConfig.getActiveProfile()
                 when {
@@ -163,6 +190,27 @@ class AIPreferencesFragment(
         }
         dialog.show(parentFragmentManager, "CustomProviderConfigDialog")
     }
+
+    private fun showExternalEngineConfigDialog(selectAfterSave: Boolean = false) {
+        val dialog = ExternalEngineConfigDialog { settings ->
+            updateExternalSection()
+            updateModelDropdown()
+            if (selectAfterSave || agents.getProvider() == "external") {
+                handleProviderChange("external", providerDisplayName("external"), settings.resolvedDisplayLabel())
+            } else {
+                updateCurrentStatus()
+            }
+        }
+        dialog.show(parentFragmentManager, "ExternalEngineConfigDialog")
+    }
+
+    private fun showCodexConfigDialog() {
+        val dialog = CodexCliConfigDialog { _ ->
+            updateExternalSection()
+            showSnackbar("Codex CLI settings saved")
+        }
+        dialog.show(parentFragmentManager, "CodexCliConfigDialog")
+    }
     
     private fun updateProviderDropdownSelection() {
         val currentProviderId = agents.getProvider()
@@ -176,12 +224,19 @@ class AIPreferencesFragment(
         
         android.util.Log.d("AIPreferences", "Current provider: $currentProvider, model: $currentModel")
         
-        val providerDisplay = if (currentProvider == "custom") {
-            val activeProfileName = CustomProviderConfig.getActiveProfile()?.name
-            listOfNotNull(providerDisplayName(currentProvider), activeProfileName?.takeIf { it.isNotBlank() })
-                .joinToString(" · ")
-        } else {
-            providerDisplayName(currentProvider)
+        val providerDisplay = when (currentProvider) {
+            "custom" -> {
+                val activeProfileName = CustomProviderConfig.getActiveProfile()?.name
+                listOfNotNull(providerDisplayName(currentProvider), activeProfileName?.takeIf { it.isNotBlank() })
+                    .joinToString(" · ")
+            }
+            "external" -> {
+                listOfNotNull(
+                    providerDisplayName(currentProvider),
+                    ExternalEngineConfig.getModelLabel().takeIf { ExternalEngineConfig.hasValidConfig() && it.isNotBlank() }
+                ).joinToString(" · ")
+            }
+            else -> providerDisplayName(currentProvider)
         }
 
         currentProviderText.text = providerDisplay
@@ -292,6 +347,29 @@ class AIPreferencesFragment(
         }
     }
 
+    private fun setupExternalEngineSection() {
+        installCodexButton.setOnClickListener {
+            val settings = CodexTermuxBridge.installAndConfigure(
+                context = requireContext(),
+                selectProvider = true
+            )
+            updateExternalSection()
+            updateProviderDropdownSelection()
+            updateModelDropdown()
+            updateCurrentStatus()
+            showSnackbar("Codex CLI installer opened and External Engine preset applied")
+            if (agents.getProvider() == "external") {
+                handleProviderChange("external", providerDisplayName("external"), settings.resolvedDisplayLabel())
+            }
+        }
+        configureExternalEngineButton.setOnClickListener {
+            showExternalEngineConfigDialog()
+        }
+        configureCodexButton.setOnClickListener {
+            showCodexConfigDialog()
+        }
+    }
+
     private fun updateCustomProfileDropdown() {
         val profiles = CustomProviderConfig.getProfiles()
         customProfileIds = profiles.map { it.id }
@@ -319,6 +397,29 @@ class AIPreferencesFragment(
         customSection.visibility = View.VISIBLE
     }
 
+    private fun updateExternalSection() {
+        externalSection.visibility = View.VISIBLE
+        val codexStatus = CodexTermuxBridge.status()
+        val codexConfig = CodexCliConfig.getSettings()
+        externalEngineSummaryText.text = if (ExternalEngineConfig.hasValidConfig()) {
+            val settings = ExternalEngineConfig.getSettings()
+            listOf(
+                codexStatus.summaryText(),
+                settings.resolvedDisplayLabel(),
+                settings.workingDirectoryMode.displayName,
+                if (settings.passPromptViaStdin) "stdin on" else "stdin off"
+            ).joinToString(" · ")
+        } else {
+            codexStatus.summaryText()
+        }
+        codexConfigSummaryText.text = if (codexConfig.isValid) {
+            "Codex config: ${codexConfig.summaryText()}"
+        } else {
+            "Codex config: not set. Configure provider ID, base URL, key, and model for the Termux bridge."
+        }
+        installCodexButton.text = if (codexStatus.installed) "Reinstall Codex CLI" else "Install Codex CLI"
+    }
+
     private fun providerDisplayName(providerId: String): String {
         return when (providerId) {
             "gemini" -> "Google Gemini"
@@ -327,6 +428,7 @@ class AIPreferencesFragment(
             "deepseek" -> "DeepSeek"
             "grok" -> "xAI Grok"
             "localllm" -> "Local LLM"
+            "external" -> "External Engine"
             "custom" -> "Custom Provider"
             else -> providerId.uppercase()
         }
@@ -357,10 +459,17 @@ class AIPreferencesFragment(
         
         val savedState = requireContext().getSharedPreferences("ai_preferences", Context.MODE_PRIVATE)
             .getBoolean("code_completion_enabled", true)
-        isCompletionEnabled = savedState
-        codeCompletionToggle.isChecked = savedState
+        val effectiveSavedState = if (agents.getProvider() == "external") false else savedState
+        isCompletionEnabled = effectiveSavedState
+        codeCompletionToggle.isChecked = effectiveSavedState
+        codeCompletionToggle.isEnabled = agents.getProvider() != "external"
         
         codeCompletionToggle.setOnCheckedChangeListener { _, isChecked ->
+            if (agents.getProvider() == "external" && isChecked) {
+                codeCompletionToggle.isChecked = false
+                showSnackbar("Code completion is unavailable for External Engine")
+                return@setOnCheckedChangeListener
+            }
             android.util.Log.d("AIPreferences", "Toggle changed to: $isChecked")
             
             isCompletionEnabled = isChecked
@@ -427,11 +536,14 @@ class AIPreferencesFragment(
     private fun syncCodeCompletionToggle() {
         val savedState = requireContext().getSharedPreferences("ai_preferences", Context.MODE_PRIVATE)
             .getBoolean("code_completion_enabled", true)
-        
-        android.util.Log.d("AIPreferences", "Syncing toggle: saved=$savedState")
-        
-        isCompletionEnabled = savedState
-        codeCompletionToggle.isChecked = savedState
+
+        val effectiveSavedState = if (agents.getProvider() == "external") false else savedState
+
+        android.util.Log.d("AIPreferences", "Syncing toggle: saved=$effectiveSavedState")
+
+        isCompletionEnabled = effectiveSavedState
+        codeCompletionToggle.isChecked = effectiveSavedState
+        codeCompletionToggle.isEnabled = agents.getProvider() != "external"
     }
 
     private fun handleProviderChange(
@@ -457,14 +569,28 @@ class AIPreferencesFragment(
         updateModelDropdown()
         updateCustomProfileDropdown()
         updateCustomSectionVisibility()
+        updateExternalSection()
         
         if (aiAgent.setProvider(providerId)) {
             updateProviderDropdownSelection()
             aiAgent.reinitializeWithSelectedModel()
             updateCurrentStatus()
-            
+            updateExternalSection()
+            codeCompletionToggle.isEnabled = providerId != "external"
+            if (providerId == "external" && isCompletionEnabled) {
+                requireContext().getSharedPreferences("ai_preferences", Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("code_completion_enabled", false)
+                    .apply()
+                isCompletionEnabled = false
+                codeCompletionToggle.isChecked = false
+                lifecycleScope.launch {
+                    applyCompletionStateChange(false)
+                }
+            }
+             
             lifecycleScope.launch {
-                if (isCompletionEnabled) {
+                if (isCompletionEnabled && providerId != "external") {
                     delay(500)
                     codeCompletionManager?.reattachToCurrentEditor()
                     android.util.Log.d("AIPreferences", "Reattached completion after provider change")
@@ -481,6 +607,7 @@ class AIPreferencesFragment(
             updateModelDropdown()
             updateCustomProfileDropdown()
             updateCustomSectionVisibility()
+            updateExternalSection()
             updateCurrentStatus()
             showSnackbar("⚠️ No valid API key for $providerName")
         }

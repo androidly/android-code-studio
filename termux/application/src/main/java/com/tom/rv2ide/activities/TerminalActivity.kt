@@ -31,6 +31,7 @@ import com.termux.app.terminal.TermuxTerminalSessionActivityClient
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession
 import com.tom.rv2ide.terminal.IdeTerminalSessionClient
 import com.tom.rv2ide.terminal.IdesetupSession
+import com.tom.rv2ide.terminal.ShellCommandSession
 import com.tom.rv2ide.utils.Environment
 import com.tom.rv2ide.utils.flashError
 import org.slf4j.LoggerFactory
@@ -57,6 +58,10 @@ class TerminalActivity : TermuxActivity() {
 
     const val EXTRA_ONBOARDING_RUN_IDESETUP = "ide.onboarding.terminal.runIdesetup"
     const val EXTRA_ONBOARDING_RUN_IDESETUP_ARGS = "ide.onboarding.terminal.runIdesetup.args"
+    const val EXTRA_SCRIPTED_SESSION_COMMAND = "ide.terminal.scripted.command"
+    const val EXTRA_SCRIPTED_SESSION_NAME = "ide.terminal.scripted.name"
+    const val EXTRA_SCRIPTED_SESSION_WORKDIR = "ide.terminal.scripted.workdir"
+    const val EXTRA_SCRIPTED_SESSION_KEEP_OPEN = "ide.terminal.scripted.keepOpen"
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -107,6 +112,17 @@ class TerminalActivity : TermuxActivity() {
         addIdesetupSession(runIdesetupArgs)
         return
       }
+
+      val scriptedCommand = intent.getStringExtra(EXTRA_SCRIPTED_SESSION_COMMAND)
+      if (!scriptedCommand.isNullOrBlank()) {
+        addScriptedCommandSession(
+            command = scriptedCommand,
+            sessionName = intent.getStringExtra(EXTRA_SCRIPTED_SESSION_NAME),
+            workingDirectory = intent.getStringExtra(EXTRA_SCRIPTED_SESSION_WORKDIR),
+            keepShellOpen = intent.getBooleanExtra(EXTRA_SCRIPTED_SESSION_KEEP_OPEN, false),
+        )
+        return
+      }
     }
 
     super.setupTermuxSessionOnServiceConnected(
@@ -138,6 +154,42 @@ class TerminalActivity : TermuxActivity() {
                 /* workingDirectory = */ Environment.HOME.absolutePath,
                 /* isFailSafe = */ false,
                 /* sessionName = */ "IDE setup",
+            ),
+            script,
+        )
+
+    session
+        ?: run {
+          flashError(R.string.msg_cannot_create_terminal_session)
+          return
+        }
+
+    termuxTerminalSessionClient.setCurrentSession(session.terminalSession)
+  }
+
+  private fun addScriptedCommandSession(
+      command: String,
+      sessionName: String?,
+      workingDirectory: String?,
+      keepShellOpen: Boolean,
+  ) {
+    val script =
+        ShellCommandSession.createScript(this, command, keepShellOpen)
+            ?: run {
+              log.error("Failed to add scripted terminal session. Cannot create script.")
+              flashError(R.string.msg_cannot_create_terminal_session)
+              return
+            }
+
+    val session =
+        ShellCommandSession.wrap(
+            termuxService.createTermuxSession(
+                /* executablePath = */ script.absolutePath,
+                /* arguments = */ emptyArray(),
+                /* stdin = */ null,
+                /* workingDirectory = */ workingDirectory ?: Environment.HOME.absolutePath,
+                /* isFailSafe = */ false,
+                /* sessionName = */ sessionName ?: "Command",
             ),
             script,
         )
