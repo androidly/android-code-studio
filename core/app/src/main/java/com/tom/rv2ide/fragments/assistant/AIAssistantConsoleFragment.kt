@@ -27,7 +27,7 @@ import com.tom.rv2ide.activities.ReviewChangesActivity
 import com.tom.rv2ide.activities.editor.EditorHandlerActivity
 import com.tom.rv2ide.artificial.agents.Agents
 import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
-import com.tom.rv2ide.artificial.dialogs.ExternalEngineConfigDialog
+import com.tom.rv2ide.artificial.dialogs.CodexCliConfigDialog
 import com.tom.rv2ide.utils.ProjectHelper.getProjectRoot
 import java.io.File
 import kotlinx.coroutines.launch
@@ -215,11 +215,14 @@ class AIAssistantConsoleFragment : Fragment() {
                     showSnackbar("Assistant switched to Codex CLI")
                 }
                 else -> {
-                    ExternalEngineConfigDialog { savedSettings ->
-                        Agents(requireContext()).setProvider("external")
-                        Agents(requireContext()).setAgent(savedSettings.resolvedDisplayLabel())
+                    CodexCliConfigDialog {
+                        CodexTermuxBridge.ensureManagedPreset(
+                            context = requireContext(),
+                            selectProvider = true
+                        )
                         consoleViewModel.refreshAgentPresentation()
-                    }.show(parentFragmentManager, "ExternalEngineConfigDialog")
+                        showSnackbar("Codex CLI settings saved")
+                    }.show(parentFragmentManager, "CodexCliConfigDialog")
                 }
             }
         }

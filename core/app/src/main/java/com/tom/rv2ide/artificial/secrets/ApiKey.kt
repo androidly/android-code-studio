@@ -113,7 +113,7 @@ object ApiKey {
         if (hasAnthropicKey()) providers.add("Anthropic")
         if (hasGrokKey()) providers.add("Grok")
         if (hasCustomProviderConfig()) providers.add("Custom")
-        if (hasExternalEngineConfig()) providers.add("External Engine")
+        if (hasExternalEngineConfig()) providers.add("Codex CLI")
         return providers
     }
     

@@ -37,7 +37,7 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
 
     override val providerId: String = "external"
     override val providerName: String
-        get() = ExternalEngineConfig.getModelLabel().ifBlank { "External Engine" }
+        get() = ExternalEngineConfig.getModelLabel().ifBlank { "Codex CLI" }
 
     private var appContext: Context? = null
     private var fileWriter: AIFileWriter? = null
@@ -71,9 +71,9 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
     }
 
     override fun initialize(apiKey: String, context: Context) {
-        val resolvedSettings = ExternalEngineConfig.getSettings()
+        val resolvedSettings = CodexTermuxBridge.ensureManagedPreset(context = context)
         if (!resolvedSettings.isValid) {
-            throw ExternalEngineConfigurationException("External Engine is not configured")
+            throw ExternalEngineConfigurationException("Codex CLI is not configured")
         }
 
         appContext = context.applicationContext
@@ -143,52 +143,91 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
                 return@withContext Result.failure(ExternalEngineConfigurationException(issue))
             }
             val resolvedSettings = settings ?: return@withContext Result.failure(
-                ExternalEngineConfigurationException("External Engine is not configured")
+                ExternalEngineConfigurationException("Codex CLI is not configured")
             )
             val contextRef = appContext ?: return@withContext Result.failure(
-                ExternalEngineConfigurationException("External Engine context is unavailable")
+                ExternalEngineConfigurationException("Codex CLI context is unavailable")
             )
 
             val promptPayload = buildPromptPayload(prompt, context)
             val workingDirectory = resolveWorkingDirectory(resolvedSettings, contextRef)
             val projectRoot = resolveProjectRoot(workingDirectory)
+            val useManagedCodexRuntime =
+                CodexTermuxBridge.isManagedCodexTemplate(resolvedSettings.commandTemplate)
             val sessionFile = currentSessionFile(workingDirectory)
                 ?: return@withContext Result.failure(
                     ExternalEngineExecutionException("Unable to create session file")
                 )
-            val promptFile = preparePromptFile(contextRef, promptPayload)
+            val promptFile = if (useManagedCodexRuntime) {
+                null
+            } else {
+                preparePromptFile(contextRef, promptPayload)
+            }
             val launchConfiguration = when {
-                resolvedSettings.commandTemplate.contains("{codex_shell_setup}") ||
+                useManagedCodexRuntime ||
+                    resolvedSettings.commandTemplate.contains("{codex_shell_setup}") ||
                     resolvedSettings.commandTemplate.contains("{codex_config_flags}") ->
                     CodexTermuxBridge.prepareLaunchConfiguration(contextRef)
                 else -> null
             }
-            val command = renderCommandTemplate(
-                commandTemplate = resolvedSettings.commandTemplate,
-                promptPayload = promptPayload,
-                projectRoot = projectRoot,
-                workingDirectory = workingDirectory,
-                sessionFile = sessionFile,
-                promptFile = promptFile,
-                launchConfiguration = launchConfiguration,
-                codexResumeArgs = resolveCodexResumeArgs(
+            val command = if (useManagedCodexRuntime) {
+                null
+            } else {
+                renderCommandTemplate(
+                    commandTemplate = resolvedSettings.commandTemplate,
+                    promptPayload = promptPayload,
+                    projectRoot = projectRoot,
+                    workingDirectory = workingDirectory,
+                    sessionFile = sessionFile,
+                    promptFile = promptFile
+                        ?: return@withContext Result.failure(
+                            ExternalEngineExecutionException("Unable to create prompt file")
+                        ),
+                    launchConfiguration = launchConfiguration,
+                    codexResumeArgs = resolveCodexResumeArgs(
+                        sessionFile = sessionFile,
+                        launchConfiguration = launchConfiguration
+                    )
+                )
+            }
+            val managedCodexArgs = if (useManagedCodexRuntime) {
+                buildManagedCodexArgs(
+                    promptPayload = promptPayload,
+                    workingDirectory = workingDirectory,
                     sessionFile = sessionFile,
                     launchConfiguration = launchConfiguration
+                        ?: return@withContext Result.failure(
+                            ExternalEngineExecutionException("Codex launch configuration is unavailable")
+                        )
                 )
-            )
+            } else {
+                null
+            }
 
             val response = executeExternalCommand(
                 context = contextRef,
                 command = command,
+                argv = managedCodexArgs,
                 workingDirectory = workingDirectory,
                 sessionFile = sessionFile,
                 promptPayload = promptPayload,
-                passPromptViaStdin = resolvedSettings.passPromptViaStdin,
+                passPromptViaStdin = if (useManagedCodexRuntime) {
+                    false
+                } else {
+                    resolvedSettings.passPromptViaStdin
+                },
                 listener = listener,
-                launchConfiguration = launchConfiguration
+                launchConfiguration = launchConfiguration,
+                useCodexJsonStream = useManagedCodexRuntime ||
+                    (
+                        launchConfiguration != null &&
+                            command != null &&
+                            command.contains("codex exec") &&
+                            command.contains("--json")
+                        )
             )
 
-            runCatching { promptFile.delete() }
+            promptFile?.let { runCatching { it.delete() } }
             Result.success(response)
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -266,7 +305,7 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
 
     override fun writeFile(filePath: String, content: String): FileWriteResult {
         return fileWriter?.writeFile(filePath, content)
-            ?: FileWriteResult.Error("External Engine file writer is not initialized")
+            ?: FileWriteResult.Error("Codex CLI file writer is not initialized")
     }
 
     override fun isInitialized(): Boolean {
@@ -296,7 +335,7 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
         val state = JSONObject(serializedState)
         val restoredFingerprint = state.optString("fingerprint").trim()
         if (restoredFingerprint.isNotBlank() && restoredFingerprint != persistentConversationFingerprint()) {
-            throw ExternalEngineConfigurationException("External Engine configuration changed")
+            throw ExternalEngineConfigurationException("Codex CLI configuration changed")
         }
         val restoredThreadId = state.optString("threadId").trim()
         if (restoredThreadId.isNotBlank()) {
@@ -310,7 +349,7 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
 
     private fun ensureInitialized() {
         if (!isInitialized()) {
-            throw ExternalEngineConfigurationException("External Engine is not configured")
+            throw ExternalEngineConfigurationException("Codex CLI is not configured")
         }
     }
 
@@ -391,25 +430,32 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
 
     private suspend fun executeExternalCommand(
         context: Context,
-        command: String,
+        command: String?,
+        argv: List<String>?,
         workingDirectory: File,
         sessionFile: File,
         promptPayload: String,
         passPromptViaStdin: Boolean,
         listener: AIAgentStreamListener,
-        launchConfiguration: CodexTermuxBridge.CodexLaunchConfiguration?
+        launchConfiguration: CodexTermuxBridge.CodexLaunchConfiguration?,
+        useCodexJsonStream: Boolean
     ): String {
-        val shell = when {
-            Environment.BASH_SHELL.exists() -> Environment.BASH_SHELL.absolutePath
-            else -> "/system/bin/sh"
-        }
-        val shellArgs = if (shell.endsWith("bash")) {
-            listOf(shell, "-lc", command)
+        val processBuilder = if (!argv.isNullOrEmpty()) {
+            ProcessBuilder(argv)
         } else {
-            listOf(shell, "-c", command)
+            val resolvedCommand = command
+                ?: throw ExternalEngineExecutionException("External engine command is empty")
+            val shell = when {
+                Environment.BASH_SHELL.exists() -> Environment.BASH_SHELL.absolutePath
+                else -> "/system/bin/sh"
+            }
+            val shellArgs = if (shell.endsWith("bash")) {
+                listOf(shell, "-lc", resolvedCommand)
+            } else {
+                listOf(shell, "-c", resolvedCommand)
+            }
+            ProcessBuilder(shellArgs)
         }
-
-        val processBuilder = ProcessBuilder(shellArgs)
         processBuilder.directory(workingDirectory)
         processBuilder.redirectErrorStream(true)
         val environment = processBuilder.environment()
@@ -420,6 +466,7 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
         environment.putAll(customEnvironment)
         sanitizeExternalCliEnvironment(environment)
         ensurePathEnvironment(environment)
+        environment.putAll(launchConfiguration?.environmentVariables.orEmpty())
 
         val process = try {
             processBuilder.start()
@@ -449,9 +496,6 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
                 runCatching { process.outputStream.close() }
             }
 
-            val useCodexJsonStream = launchConfiguration != null &&
-                command.contains("codex exec") &&
-                command.contains("--json")
             val codexJsonCollector = if (useCodexJsonStream) {
                 CodexJsonStreamCollector(
                     sessionFile = sessionFile,
@@ -536,6 +580,38 @@ class ExternalEngineAgent : AIAgent, PersistentConversationAgent {
             "-"
         } else {
             "resume ${shellQuote(storedThreadId)} -"
+        }
+    }
+
+    private fun buildManagedCodexArgs(
+        promptPayload: String,
+        workingDirectory: File,
+        sessionFile: File,
+        launchConfiguration: CodexTermuxBridge.CodexLaunchConfiguration
+    ): List<String> {
+        val executablePath = CodexTermuxBridge.status().executablePath?.trim().takeIf { !it.isNullOrBlank() }
+            ?: "codex"
+        val storedThreadId = readStoredThreadId(sessionFile)
+        return buildList {
+            add(executablePath)
+            add("exec")
+            if (storedThreadId.isNullOrBlank()) {
+                add("--skip-git-repo-check")
+                addAll(launchConfiguration.cliConfigArgs)
+                add("--dangerously-bypass-approvals-and-sandbox")
+                add("--json")
+                add("--cd")
+                add(workingDirectory.absolutePath)
+                add(promptPayload)
+            } else {
+                add("resume")
+                add("--skip-git-repo-check")
+                addAll(launchConfiguration.cliConfigArgs)
+                add("--dangerously-bypass-approvals-and-sandbox")
+                add(storedThreadId)
+                add("--json")
+                add(promptPayload)
+            }
         }
     }
 

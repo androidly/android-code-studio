@@ -102,7 +102,7 @@ class CodeCompletionManager private constructor(
                 }
 
                 if (aiAgent.getCurrentProviderId() == "external") {
-                    onError(Exception("Code completion is unavailable for External Engine"))
+                    onError(Exception("Code completion is unavailable for Codex CLI"))
                     return@launch
                 }
                  

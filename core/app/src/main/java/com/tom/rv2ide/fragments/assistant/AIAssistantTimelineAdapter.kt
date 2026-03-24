@@ -19,6 +19,7 @@ import com.tom.rv2ide.R
 class AIAssistantTimelineAdapter(
     private val onDiffClicked: (AIAssistantDiffItem) -> Unit
 ) : ListAdapter<AIAssistantTimelineItem, RecyclerView.ViewHolder>(TimelineDiffCallback) {
+    private val streamAttachmentUiStates = mutableMapOf<Long, StreamAttachmentUiState>()
 
     init {
         setHasStableIds(true)
@@ -32,6 +33,11 @@ class AIAssistantTimelineAdapter(
         newItems: List<AIAssistantTimelineItem>,
         onCommitted: (() -> Unit)? = null
     ) {
+        val liveStreamItemIds = newItems
+            .filterIsInstance<AIAssistantStreamingResponseItem>()
+            .map(AIAssistantStreamingResponseItem::id)
+            .toSet()
+        streamAttachmentUiStates.keys.retainAll(liveStreamItemIds)
         submitList(newItems) {
             onCommitted?.invoke()
         }
@@ -149,16 +155,21 @@ class AIAssistantTimelineAdapter(
         }
     }
 
-    private class StreamingResponseViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    private inner class StreamingResponseViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val card = itemView.findViewById<MaterialCardView>(R.id.streamCard)
         private val title = itemView.findViewById<TextView>(R.id.streamTitle)
         private val status = itemView.findViewById<TextView>(R.id.streamStatus)
         private val body = itemView.findViewById<TextView>(R.id.streamBody)
-        private val attachmentLabel = itemView.findViewById<TextView>(R.id.streamAttachmentLabel)
+        private val activityCard = itemView.findViewById<MaterialCardView>(R.id.streamActivityCard)
+        private val attachmentHeader = itemView.findViewById<View>(R.id.streamAttachmentHeader)
+        private val attachmentToggleText = itemView.findViewById<TextView>(R.id.streamAttachmentToggleText)
+        private val attachmentChevron = itemView.findViewById<TextView>(R.id.streamAttachmentChevron)
+        private val attachmentPreview = itemView.findViewById<TextView>(R.id.streamAttachmentPreview)
         private val attachmentRecyclerView = itemView.findViewById<RecyclerView>(R.id.streamAttachmentRecyclerView)
         private val progress = itemView.findViewById<LinearProgressIndicator>(R.id.streamProgress)
         private val attachmentAdapter = AIAssistantAttachmentAdapter()
         private var lastAttachmentSignature: String? = null
+        private var boundItem: AIAssistantStreamingResponseItem? = null
 
         init {
             attachmentRecyclerView.apply {
@@ -169,9 +180,16 @@ class AIAssistantTimelineAdapter(
                 overScrollMode = View.OVER_SCROLL_NEVER
                 setRecycledViewPool(toolAttachmentViewPool)
             }
+            attachmentHeader.setOnClickListener {
+                val item = boundItem ?: return@setOnClickListener
+                val state = resolveAttachmentUiState(item)
+                streamAttachmentUiStates[item.id] = state.copy(expanded = !state.expanded, userToggled = true)
+                applyAttachmentSection(item, !state.expanded)
+            }
         }
 
         fun bind(item: AIAssistantStreamingResponseItem) {
+            boundItem = item
             title.text = item.header
             status.text = item.status.orEmpty()
             status.isVisible = status.text.toString().isNotBlank()
@@ -196,10 +214,31 @@ class AIAssistantTimelineAdapter(
                 messageId = item.id,
                 isStreaming = hasResponse && item.isStreaming
             )
-            bindAttachmentsIfNeeded(item.attachments)
-            attachmentLabel.isVisible = item.attachments.isNotEmpty()
-            attachmentRecyclerView.isVisible = item.attachments.isNotEmpty()
+            applyAttachmentSection(item)
             progress.isVisible = item.isStreaming
+        }
+
+        private fun applyAttachmentSection(item: AIAssistantStreamingResponseItem, expandedOverride: Boolean? = null) {
+            val hasAttachments = item.attachments.isNotEmpty()
+            activityCard.isVisible = hasAttachments
+            if (!hasAttachments) {
+                attachmentPreview.text = ""
+                attachmentRecyclerView.isVisible = false
+                return
+            }
+
+            bindAttachmentsIfNeeded(item.attachments)
+            val attachmentCount = item.attachments.size
+            val expanded = expandedOverride ?: resolveAttachmentUiState(item).expanded
+            attachmentToggleText.text = if (expanded) {
+                "Activity · $attachmentCount " + if (attachmentCount == 1) "step" else "steps"
+            } else {
+                "Show $attachmentCount " + if (attachmentCount == 1) "step" else "steps"
+            }
+            attachmentChevron.text = if (expanded) "v" else ">"
+            attachmentPreview.text = buildAttachmentPreviewText(item.attachments, expanded)
+            attachmentPreview.isVisible = attachmentPreview.text.isNotBlank()
+            attachmentRecyclerView.isVisible = expanded
         }
 
         private fun bindAttachmentsIfNeeded(attachments: List<AIAssistantToolItem>) {
@@ -211,11 +250,32 @@ class AIAssistantTimelineAdapter(
             attachmentAdapter.replaceAll(attachments)
         }
 
+        private fun resolveAttachmentUiState(item: AIAssistantStreamingResponseItem): StreamAttachmentUiState {
+            val signature = attachmentSectionSignature(item)
+            val existingState = streamAttachmentUiStates[item.id]
+            val nextState = when {
+                existingState == null -> StreamAttachmentUiState(
+                    expanded = defaultAttachmentSectionExpanded(item),
+                    userToggled = false,
+                    signature = signature
+                )
+                existingState.userToggled -> existingState.copy(signature = signature)
+                existingState.signature != signature -> existingState.copy(
+                    expanded = defaultAttachmentSectionExpanded(item),
+                    signature = signature
+                )
+                else -> existingState
+            }
+            streamAttachmentUiStates[item.id] = nextState
+            return nextState
+        }
+
         fun recycle() {
             AIAssistantRichTextRenderer.cancel(body)
             body.text = ""
             attachmentAdapter.replaceAll(emptyList())
             lastAttachmentSignature = null
+            boundItem = null
             body.tag = null
         }
 
@@ -279,7 +339,7 @@ class AIAssistantTimelineAdapter(
         }
     }
 
-    companion object {
+        companion object {
         private const val VIEW_TYPE_USER = 0
         private const val VIEW_TYPE_MESSAGE = 1
         private const val VIEW_TYPE_STATUS = 2
@@ -303,6 +363,12 @@ class AIAssistantTimelineAdapter(
             }
         }
 
+        private data class StreamAttachmentUiState(
+            val expanded: Boolean,
+            val userToggled: Boolean,
+            val signature: String
+        )
+
         private fun attachmentSignature(attachments: List<AIAssistantToolItem>): String {
             if (attachments.isEmpty()) {
                 return ""
@@ -318,6 +384,43 @@ class AIAssistantTimelineAdapter(
                     append(attachment.outputPreview.orEmpty().hashCode())
                     append('|')
                 }
+            }
+        }
+
+        private fun attachmentSectionSignature(item: AIAssistantStreamingResponseItem): String {
+            return buildString {
+                append(attachmentSignature(item.attachments))
+                append('#')
+                append(item.response.isNotBlank())
+                append('#')
+                append(item.isStreaming)
+            }
+        }
+
+        private fun defaultAttachmentSectionExpanded(item: AIAssistantStreamingResponseItem): Boolean {
+            if (item.attachments.isEmpty()) {
+                return false
+            }
+            if (item.response.isNotBlank()) {
+                return false
+            }
+            return item.attachments.size == 1 && item.attachments.lastOrNull()?.isLive == true
+        }
+
+        private fun buildAttachmentPreviewText(
+            attachments: List<AIAssistantToolItem>,
+            expanded: Boolean
+        ): String {
+            val latest = attachments.lastOrNull() ?: return ""
+            val latestSummary = listOfNotNull(
+                latest.stage.label,
+                latest.title.takeIf { it.isNotBlank() },
+                latest.summary.takeIf { it.isNotBlank() }
+            ).joinToString(" · ").trim()
+            return if (expanded) {
+                "Latest: $latestSummary"
+            } else {
+                latestSummary
             }
         }
 

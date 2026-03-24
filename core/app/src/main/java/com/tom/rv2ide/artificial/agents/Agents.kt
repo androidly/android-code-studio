@@ -233,7 +233,7 @@ class Agents(ctx: Context) {
       "deepseek" -> "deepseek-chat"
       "grok" -> "grok-beta"
       "localllm" -> "local-model"
-      "external" -> ExternalEngineConfig.getModelLabel().ifBlank { "External CLI" }
+      "external" -> ExternalEngineConfig.getModelLabel().ifBlank { "Codex CLI" }
       else -> "gemini-2.5-pro"
         }
       }

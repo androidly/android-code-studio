@@ -31,10 +31,8 @@ import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
 import com.tom.rv2ide.artificial.agents.external.CodexCliSettings
 import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
 import com.tom.rv2ide.artificial.agents.external.ExternalEngineConfig
-import com.tom.rv2ide.artificial.agents.external.ExternalEngineSettings
 import com.tom.rv2ide.artificial.dialogs.CodexCliConfigDialog
 import com.tom.rv2ide.artificial.dialogs.CustomProviderConfigDialog
-import com.tom.rv2ide.artificial.dialogs.ExternalEngineConfigDialog
 import com.tom.rv2ide.artificial.dialogs.ProviderSwitchDialog
 import com.tom.rv2ide.artificial.permissions.AIPermissionManager
 import com.tom.rv2ide.preferences.internal.prefManager
@@ -71,7 +69,7 @@ private val providerOptions =
         ProviderOption("deepseek", "DeepSeek"),
         ProviderOption("grok", "xAI Grok"),
         ProviderOption("localllm", "Local LLM"),
-        ProviderOption("external", "External Engine"),
+        ProviderOption("external", "Codex CLI"),
         ProviderOption("custom", "Custom Provider"),
     )
 
@@ -321,17 +319,10 @@ private class ProviderSelectionPreference(
               }
             }
           } else if (option.id == "external") {
-            if (!ExternalEngineConfig.hasValidConfig()) {
-              showExternalEngineDialog(context) { savedSettings ->
-                applyProviderSelection(context, "external", savedSettings.resolvedDisplayLabel())
-                onChanged?.invoke()
-                refresh()
-              }
-            } else {
-              applyProviderSelection(context, "external", ExternalEngineConfig.getModelLabel())
-              onChanged?.invoke()
-              refresh()
-            }
+            val settings = CodexTermuxBridge.ensureManagedPreset(context = context)
+            applyProviderSelection(context, "external", settings.resolvedDisplayLabel())
+            onChanged?.invoke()
+            refresh()
           } else {
             applyProviderSelection(context, option.id)
             onChanged?.invoke()
@@ -394,11 +385,10 @@ private class ModelSelectionPreference(
     val agents = Agents(context)
     val providerId = agents.getProvider()
     if (providerId == "external" && !ExternalEngineConfig.hasValidConfig()) {
-      showExternalEngineDialog(context) { savedSettings ->
-        applyProviderSelection(context, "external", savedSettings.resolvedDisplayLabel())
-        onChanged?.invoke()
-        refresh()
-      }
+      val settings = CodexTermuxBridge.ensureManagedPreset(context = context)
+      applyProviderSelection(context, "external", settings.resolvedDisplayLabel())
+      onChanged?.invoke()
+      refresh()
       return true
     }
     if (providerId == "custom") {
@@ -546,20 +536,20 @@ private class ExternalEnginePreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "External Engine Bridge"
+      title = "Codex CLI Bridge"
       summary = buildSummary()
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
   }
 
   override fun onPreferenceClick(preference: Preference): Boolean {
-    showExternalEngineDialog(preference.context) {
-      if (Agents(preference.context).getProvider() == "external") {
-        applyProviderSelection(preference.context, "external", it.resolvedDisplayLabel())
-      }
-      onChanged?.invoke()
-      refresh()
+    val settings = CodexTermuxBridge.ensureManagedPreset(context = preference.context)
+    if (Agents(preference.context).getProvider() == "external") {
+      applyProviderSelection(preference.context, "external", settings.resolvedDisplayLabel())
     }
+    onChanged?.invoke()
+    refresh()
+    showToast(preference.context, "Codex bridge preset applied")
     return true
   }
 
@@ -568,12 +558,9 @@ private class ExternalEnginePreference(
     if (!ExternalEngineConfig.hasValidConfig()) {
       return codexStatus.summaryText()
     }
-    val settings = ExternalEngineConfig.getSettings()
     return listOf(
         codexStatus.summaryText(),
-        settings.resolvedDisplayLabel(),
-        settings.workingDirectoryMode.displayName,
-        if (settings.passPromptViaStdin) "stdin on" else "stdin off"
+        "managed session bridge active"
     ).joinToString(" • ")
   }
 
@@ -869,19 +856,6 @@ private fun showCustomProviderDialog(
   }
   CustomProviderConfigDialog(profileId = profileId, createNew = createNew, onSave = onSave)
       .show(activity.supportFragmentManager, "CustomProviderConfigDialog")
-}
-
-private fun showExternalEngineDialog(
-    context: Context,
-    onSave: (ExternalEngineSettings) -> Unit,
-) {
-  val activity = context.findFragmentActivity()
-  if (activity == null) {
-    showToast(context, "Unable to open the External Engine editor from this screen")
-    return
-  }
-  ExternalEngineConfigDialog(onSave = onSave)
-      .show(activity.supportFragmentManager, "ExternalEngineConfigDialog")
 }
 
 private fun showCodexCliDialog(

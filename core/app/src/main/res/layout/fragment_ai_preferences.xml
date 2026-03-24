@@ -138,14 +138,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="4dp"
-                android:text="External Engine"
+                android:text="Codex CLI Bridge"
                 android:textAppearance="?attr/textAppearanceTitleSmall" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:text="Bridge a Termux CLI into the assistant with a command template and persistent session file."
+                android:text="Bridge the assistant to Termux Codex sessions. The managed bridge follows the Codex flow and no longer exposes a command template."
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -195,7 +195,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Configure Bridge"
+                    android:text="Apply Preset"
                     app:icon="@drawable/ic_settings" />
 
             </LinearLayout>

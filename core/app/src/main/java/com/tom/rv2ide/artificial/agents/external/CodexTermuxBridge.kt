@@ -25,7 +25,7 @@ data class CodexTermuxStatus(
 
     fun runtimeIssue(): String? {
         if (!configuredForCodex) {
-            return null
+            return "Codex bridge preset is missing. Apply the Codex preset first."
         }
         return when {
             !installed -> "Codex CLI is not installed in Termux yet. Tap Install Codex to set it up."
@@ -40,14 +40,12 @@ data class CodexTermuxStatus(
                 "Codex CLI installed${executablePath?.let { " • $it" }.orEmpty()} • launcher needs repair, rerun installer"
             installed && configuredForCodex ->
                 "Codex CLI installed${executablePath?.let { " • $it" }.orEmpty()} • preset ready"
-            installed && configured ->
-                "Codex CLI installed${executablePath?.let { " • $it" }.orEmpty()} • bridge uses a custom command"
             installed ->
-                "Codex CLI installed${executablePath?.let { " • $it" }.orEmpty()} • bridge not configured yet"
+                "Codex CLI installed${executablePath?.let { " • $it" }.orEmpty()} • apply Codex preset"
             configuredForCodex ->
                 "Codex preset saved • install Codex CLI in Termux to run it"
             configured ->
-                "External bridge configured • Codex CLI not installed"
+                "Codex bridge preset missing • apply Codex preset"
             else ->
                 "Codex CLI not installed yet"
         }
@@ -74,7 +72,9 @@ object CodexTermuxBridge {
 
     data class CodexLaunchConfiguration(
         val shellSetup: String,
-        val cliConfigFlags: String
+        val cliConfigFlags: String,
+        val cliConfigArgs: List<String>,
+        val environmentVariables: Map<String, String>
     )
 
     private val executableCandidates: List<File>
@@ -96,17 +96,22 @@ object CodexTermuxBridge {
     }
 
     fun repairCodexSettingsIfNeeded(settings: ExternalEngineSettings): ExternalEngineSettings? {
-        if (isManagedCodexTemplate(settings.commandTemplate)) {
+        val normalizedDisplayName = settings.displayName.trim()
+        val looksLikeCodexProfile = looksLikeCodexCommand(settings.commandTemplate) ||
+            (settings.commandTemplate.isBlank() && normalizedDisplayName.contains("codex", ignoreCase = true))
+        if (!looksLikeCodexProfile) {
             return null
         }
-        if (!looksLikeCodexCommand(settings.commandTemplate)) {
-            return null
-        }
-        return recommendedSettings().copy(
-            displayName = settings.displayName.ifBlank { "Codex CLI" },
+        val normalizedSettings = recommendedSettings().copy(
+            displayName = normalizedDisplayName.ifBlank { "Codex CLI" },
             workingDirectoryMode = settings.workingDirectoryMode,
-            passPromptViaStdin = true
+            passPromptViaStdin = false
         )
+        return if (settings == normalizedSettings) {
+            null
+        } else {
+            normalizedSettings
+        }
     }
 
     fun recommendedSettings(): ExternalEngineSettings {
@@ -117,7 +122,7 @@ object CodexTermuxBridge {
                 append("codex exec --json {codex_config_flags} --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check {codex_resume_args}")
             },
             workingDirectoryMode = ExternalWorkingDirectoryMode.PROJECT_ROOT,
-            passPromptViaStdin = true
+            passPromptViaStdin = false
         )
     }
 
@@ -150,6 +155,22 @@ object CodexTermuxBridge {
         }
         context?.let(::prepareLaunchConfiguration)
         return savedSettings
+    }
+
+    fun ensureManagedPreset(context: Context? = null, selectProvider: Boolean = false): ExternalEngineSettings {
+        val currentSettings = ExternalEngineConfig.getSettings()
+        val managedSettings = if (isManagedCodexTemplate(currentSettings.commandTemplate)) {
+            currentSettings
+        } else {
+            applyPreset(selectProvider = false, context = null)
+        }
+        if (selectProvider && context != null) {
+            val agents = Agents(context)
+            agents.setProvider("external")
+            agents.setAgent(managedSettings.resolvedDisplayLabel())
+        }
+        context?.let(::prepareLaunchConfiguration)
+        return managedSettings
     }
 
     fun installAndConfigure(
@@ -457,9 +478,19 @@ object CodexTermuxBridge {
         val configFile = File(codexHome, "config.toml")
         val authFile = File(codexHome, "auth.json")
         val export = resolveExportSource(context)
+        val envFileContent = export.environmentVariables
+            .takeIf { it.isNotEmpty() }
+            ?.let { environmentVariables ->
+                buildString {
+                    appendLine(MANAGED_CONFIG_MARKER)
+                    environmentVariables.forEach { (key, value) ->
+                        appendLine("export $key=${shellQuote(value)}")
+                    }
+                }
+            }
 
         when {
-            export.envFileContent != null -> envFile.writeText(export.envFileContent)
+            envFileContent != null -> envFile.writeText(envFileContent)
             envFile.exists() -> envFile.delete()
         }
 
@@ -481,7 +512,12 @@ object CodexTermuxBridge {
                 appendLine("export CODEX_HOME=${shellQuote(codexHome.absolutePath)}")
                 append("if [ -f ${shellQuote(envFile.absolutePath)} ]; then . ${shellQuote(envFile.absolutePath)}; fi")
             },
-            cliConfigFlags = export.cliConfigFlags
+            cliConfigFlags = export.cliConfigFlags,
+            cliConfigArgs = export.cliConfigArgs,
+            environmentVariables = buildMap {
+                put("CODEX_HOME", codexHome.absolutePath)
+                putAll(export.environmentVariables)
+            }
         )
     }
 
@@ -541,8 +577,9 @@ object CodexTermuxBridge {
 
     private data class CodexExportSource(
         val cliConfigFlags: String = "",
+        val cliConfigArgs: List<String> = emptyList(),
         val configTomlContent: String? = null,
-        val envFileContent: String? = null,
+        val environmentVariables: Map<String, String> = emptyMap(),
         val authJsonContent: String? = null
     )
 
@@ -555,11 +592,12 @@ object CodexTermuxBridge {
         val customProfile = CustomProviderConfig.getActiveProfile()
         if (customProfile?.isValid == true && customProfile.apiType == CustomProviderApiType.OPENAI_RESPONSES) {
             val versionedBaseUrl = versionedBaseUrl(customProfile.normalizedBaseUrl)
-            val cliFlags = listOf(
-                "--config ${shellQuote("model_provider=${tomlString(CUSTOM_PROVIDER_ID)}")}",
-                "--config ${shellQuote("model=${tomlString(customProfile.modelId)}")}",
-                "--config ${shellQuote("model_providers.$CUSTOM_PROVIDER_ID=${buildCustomProviderInlineToml(versionedBaseUrl)}")}"
-            ).joinToString(" ")
+            val cliConfigArgs = listOf(
+                "--config", "model_provider=${tomlString(CUSTOM_PROVIDER_ID)}",
+                "--config", "model=${tomlString(customProfile.modelId)}",
+                "--config", "model_providers.$CUSTOM_PROVIDER_ID=${buildCustomProviderInlineToml(versionedBaseUrl)}"
+            )
+            val cliFlags = cliConfigArgs.joinToString(" ") { shellQuote(it) }
             val configToml = buildString {
                 appendLine(MANAGED_CONFIG_MARKER)
                 appendLine("model_provider = ${tomlString(CUSTOM_PROVIDER_ID)}")
@@ -571,14 +609,11 @@ object CodexTermuxBridge {
                 appendLine("env_key = ${tomlString(CUSTOM_PROVIDER_ENV_KEY)}")
                 appendLine("wire_api = ${tomlString("responses")}")
             }
-            val envFile = buildString {
-                appendLine("# Managed by Android Code Studio")
-                appendLine("export $CUSTOM_PROVIDER_ENV_KEY=${shellQuote(customProfile.apiKey)}")
-            }
             return CodexExportSource(
                 cliConfigFlags = cliFlags,
+                cliConfigArgs = cliConfigArgs,
                 configTomlContent = configToml,
-                envFileContent = envFile
+                environmentVariables = mapOf(CUSTOM_PROVIDER_ENV_KEY to customProfile.apiKey)
             )
         }
 
@@ -590,22 +625,21 @@ object CodexTermuxBridge {
                 ?.getAgent()
                 .orEmpty()
                 .trim()
-            val cliFlags = buildList {
-                add("--config ${shellQuote("model_provider=${tomlString("openai")}")}")
+            val cliConfigArgs = buildList {
+                add("--config")
+                add("model_provider=${tomlString("openai")}")
                 if (preferredModel.isNotBlank()) {
-                    add("--config ${shellQuote("model=${tomlString(preferredModel)}")}")
+                    add("--config")
+                    add("model=${tomlString(preferredModel)}")
                 }
-            }.joinToString(" ")
+            }
+            val cliFlags = cliConfigArgs.joinToString(" ") { shellQuote(it) }
             val configToml = buildString {
                 appendLine(MANAGED_CONFIG_MARKER)
                 appendLine("model_provider = ${tomlString("openai")}")
                 if (preferredModel.isNotBlank()) {
                     appendLine("model = ${tomlString(preferredModel)}")
                 }
-            }
-            val envFile = buildString {
-                appendLine("# Managed by Android Code Studio")
-                appendLine("export OPENAI_API_KEY=${shellQuote(openAiKey)}")
             }
             val authJson = JSONObject()
                 .put("auth_mode", "apikey")
@@ -615,8 +649,9 @@ object CodexTermuxBridge {
                 .toString(2)
             return CodexExportSource(
                 cliConfigFlags = cliFlags,
+                cliConfigArgs = cliConfigArgs,
                 configTomlContent = configToml,
-                envFileContent = envFile,
+                environmentVariables = mapOf(CODEX_OPENAI_ENV_KEY to openAiKey),
                 authJsonContent = authJson
             )
         }
@@ -626,21 +661,23 @@ object CodexTermuxBridge {
 
     private fun buildCodexExportSource(settings: CodexCliSettings): CodexExportSource {
         val inlineProviderToml = buildCodexProviderInlineToml(settings)
-        val cliFlags = buildList {
-            add("--config ${shellQuote("model_provider=${tomlString(settings.normalizedProviderId)}")}")
-            add("--config ${shellQuote("model=${tomlString(settings.model.trim())}")}")
-            add("--config ${shellQuote("review_model=${tomlString(settings.resolvedReviewModel)}")}")
-            add("--config ${shellQuote("model_reasoning_effort=${tomlString(settings.reasoningEffort.value)}")}")
-            add("--config ${shellQuote("model_context_window=${settings.contextWindow}")}")
-            add("--config ${shellQuote("model_auto_compact_token_limit=${settings.autoCompactTokenLimit}")}")
-            add(
-                "--config ${
-                    shellQuote(
-                        "model_providers.${settings.normalizedProviderId}=$inlineProviderToml"
-                    )
-                }"
-            )
-        }.joinToString(" ")
+        val cliConfigArgs = buildList {
+            add("--config")
+            add("model_provider=${tomlString(settings.normalizedProviderId)}")
+            add("--config")
+            add("model=${tomlString(settings.model.trim())}")
+            add("--config")
+            add("review_model=${tomlString(settings.resolvedReviewModel)}")
+            add("--config")
+            add("model_reasoning_effort=${tomlString(settings.reasoningEffort.value)}")
+            add("--config")
+            add("model_context_window=${settings.contextWindow}")
+            add("--config")
+            add("model_auto_compact_token_limit=${settings.autoCompactTokenLimit}")
+            add("--config")
+            add("model_providers.${settings.normalizedProviderId}=$inlineProviderToml")
+        }
+        val cliFlags = cliConfigArgs.joinToString(" ") { shellQuote(it) }
 
         val configToml = buildString {
             appendLine(MANAGED_CONFIG_MARKER)
@@ -664,15 +701,6 @@ object CodexTermuxBridge {
             appendLine("wire_api = ${tomlString("responses")}")
         }
 
-        val envFile = if (settings.usesAuthJson) {
-            null
-        } else {
-            buildString {
-                appendLine(MANAGED_CONFIG_MARKER)
-                appendLine("export $CODEX_OPENAI_ENV_KEY=${shellQuote(settings.apiKey.trim())}")
-            }
-        }
-
         val authJson = if (settings.usesAuthJson) {
             JSONObject()
                 .put("auth_mode", "apikey")
@@ -686,8 +714,13 @@ object CodexTermuxBridge {
 
         return CodexExportSource(
             cliConfigFlags = cliFlags,
+            cliConfigArgs = cliConfigArgs,
             configTomlContent = configToml,
-            envFileContent = envFile,
+            environmentVariables = if (settings.usesAuthJson) {
+                emptyMap()
+            } else {
+                mapOf(CODEX_OPENAI_ENV_KEY to settings.apiKey.trim())
+            },
             authJsonContent = authJson
         )
     }

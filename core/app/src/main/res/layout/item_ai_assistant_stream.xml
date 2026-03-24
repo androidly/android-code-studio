@@ -62,34 +62,80 @@
                 android:paddingEnd="14dp"
                 android:paddingBottom="12dp">
 
-                <TextView
-                    android:id="@+id/streamBody"
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/streamActivityCard"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textIsSelectable="true" />
+                    android:layout_marginBottom="10dp"
+                    android:visibility="gone"
+                    app:cardBackgroundColor="?attr/colorSecondaryContainer"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="?attr/colorOutlineVariant"
+                    app:strokeWidth="1dp">
 
-                <TextView
-                    android:id="@+id/streamAttachmentLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:fontFamily="monospace"
-                    android:text="Activity"
-                    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                    android:textColor="?attr/colorOutline"
-                    android:textStyle="bold"
-                    android:visibility="gone" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="12dp"
+                        android:paddingTop="10dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="10dp">
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/streamAttachmentRecyclerView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:nestedScrollingEnabled="false"
-                    android:overScrollMode="never"
-                    android:visibility="gone" />
+                        <LinearLayout
+                            android:id="@+id/streamAttachmentHeader"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:foreground="?attr/selectableItemBackgroundBorderless"
+                            android:gravity="center_vertical"
+                            android:minHeight="32dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/streamAttachmentToggleText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                                android:textColor="?attr/colorOnSecondaryContainer"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/streamAttachmentChevron"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                                android:textColor="?attr/colorOnSecondaryContainer"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/streamAttachmentPreview"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                            android:textColor="?attr/colorOnSecondaryContainer"
+                            android:textIsSelectable="true" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/streamAttachmentRecyclerView"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:clipToPadding="false"
+                            android:nestedScrollingEnabled="false"
+                            android:overScrollMode="never"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.progressindicator.LinearProgressIndicator
                     android:id="@+id/streamProgress"
@@ -100,6 +146,15 @@
                     android:visibility="gone"
                     app:indicatorColor="?attr/colorPrimary"
                     app:trackCornerRadius="3dp" />
+
+                <TextView
+                    android:id="@+id/streamBody"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textIsSelectable="true" />
 
             </LinearLayout>
 

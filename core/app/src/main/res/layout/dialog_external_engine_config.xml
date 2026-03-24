@@ -1,124 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/colorSurface"
     android:orientation="vertical"
     android:padding="24dp">
 
-    <com.google.android.material.textview.MaterialTextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:text="Configure External Engine"
-        android:textAppearance="?attr/textAppearanceHeadlineSmall"
-        android:textColor="?attr/colorOnSurface" />
-
-    <com.google.android.material.textview.MaterialTextView
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="Bridge a Termux CLI directly into the assistant timeline with a command template."
-        android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:textColor="?attr/colorOnSurfaceVariant" />
+        android:text="Legacy external-engine UI removed. Use Codex CLI settings instead."
+        android:textAppearance="?attr/textAppearanceBodyMedium" />
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/externalDisplayNameLayout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:hint="Display Name">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/externalDisplayNameInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="text"
-            android:text="Codex CLI" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/externalWorkingDirectoryLayout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:hint="Working Directory">
-
-        <com.google.android.material.textfield.MaterialAutoCompleteTextView
-            android:id="@+id/externalWorkingDirectoryInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="none" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/externalCommandTemplateLayout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
-        android:hint="Command Template">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/externalCommandTemplateInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:gravity="top|start"
-            android:inputType="textMultiLine|textNoSuggestions"
-            android:minLines="4" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.materialswitch.MaterialSwitch
-        android:id="@+id/externalPromptViaStdinSwitch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
-        android:text="Also pass the prompt payload through stdin" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/externalHelperText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:textAppearance="?attr/textAppearanceBodySmall"
-        android:textColor="?attr/colorOnSurfaceVariant" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/externalInstallCodexButton"
-        style="@style/Widget.Material3.Button.TonalButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="Install Codex CLI"
-        app:icon="@drawable/ic_ai_agent" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="end"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/externalCancelButton"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="Cancel" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/externalSaveButton"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Save" />
-
-    </LinearLayout>
 </LinearLayout>
