@@ -74,10 +74,10 @@ internal class AIAssistantCommandSheetDialog(
             title = "Switch Session",
             description = "Fill /switch so you can jump to a saved session by number."
         ),
-        insertCommand(
-            commandText = "/history ",
+        executeCommand(
+            commandText = "/history",
             title = "Session History",
-            description = "Fill /history to inspect prior turns or pull up a saved session trail."
+            description = "Show the recent turns from the active saved session."
         ),
         insertCommand(
             commandText = "/search ",
@@ -89,20 +89,20 @@ internal class AIAssistantCommandSheetDialog(
             title = "Delete Session",
             description = "Fill /delete so you can remove an old session by number."
         ),
-        insertCommand(
+        executeCommand(
             commandText = "/status",
             title = "Session Status",
-            description = "Fill /status to check the active session, queue, and runtime state."
+            description = "Show the active session, queue, provider, and runtime state."
         ),
-        insertCommand(
+        executeCommand(
             commandText = "/compress",
             title = "Compress Context",
-            description = "Fill /compress to request a tighter session summary before continuing."
+            description = "Check the current engine's context compaction support."
         ),
-        insertCommand(
-            commandText = "/memory ",
+        executeCommand(
+            commandText = "/memory",
             title = "Project Memory",
-            description = "Fill /memory to inspect or update saved memory for this workspace."
+            description = "Show the current workspace memory file."
         ),
         executeCommand(
             commandText = "/review",

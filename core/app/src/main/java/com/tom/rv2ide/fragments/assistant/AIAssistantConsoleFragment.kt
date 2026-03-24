@@ -374,11 +374,14 @@ class AIAssistantConsoleFragment : Fragment() {
             }
             "/switch" -> {
                 if (argument.isBlank()) {
+                    forceScrollOnNextTimelineUpdate = true
+                    consoleViewModel.showSessionList()
                     showSnackbar("Use /switch <number> or pick it from the / menu")
                 } else {
                     forceScrollOnNextTimelineUpdate = true
                     val switchedLabel = consoleViewModel.switchSession(argument)
                     if (switchedLabel == null) {
+                        consoleViewModel.showSessionList(query = argument)
                         showSnackbar("Session not found: $argument")
                     } else {
                         showSnackbar("Switched to $switchedLabel")
@@ -454,6 +457,7 @@ class AIAssistantConsoleFragment : Fragment() {
         forceScrollOnNextTimelineUpdate = true
         val switchedLabel = consoleViewModel.switchSession(target)
         if (switchedLabel == null) {
+            consoleViewModel.showSessionList(query = target)
             showSnackbar("Session not found: $target")
         } else {
             showSnackbar("Switched to $switchedLabel")
