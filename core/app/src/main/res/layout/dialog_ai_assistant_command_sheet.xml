@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:orientation="vertical"
     android:paddingStart="16dp"
     android:paddingTop="12dp"
@@ -20,14 +20,15 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:layout_marginBottom="10dp"
-        android:text="Run a command directly or insert it into the composer."
+        android:text="Session, history, and run controls. Use Run for supported actions or Insert to stage a command in the composer."
         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
         android:textColor="?attr/colorOutline" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/commandSheetRecyclerView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
         android:nestedScrollingEnabled="true"
         android:overScrollMode="ifContentScrolls"

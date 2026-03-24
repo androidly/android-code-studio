@@ -72,7 +72,13 @@ class AIAssistantConsoleFragment : Fragment() {
         get() = requireNotNull(_jumpToBottomButton)
 
     private val consoleViewModel: AIAssistantConsoleViewModel by activityViewModels()
-    private val timelineAdapter by lazy { AIAssistantTimelineAdapter(::openDiffFile) }
+    private val timelineAdapter by lazy {
+        AIAssistantTimelineAdapter(
+            onDiffClicked = ::openDiffFile,
+            onSessionSwitchRequested = ::handleSessionSwitchRequest,
+            onSessionDeleteRequested = ::handleSessionDeleteRequest
+        )
+    }
     private var applyingPromptState = false
     private var userAtBottom = true
     private var hasAutoScrolledInitialState = false
@@ -385,6 +391,45 @@ class AIAssistantConsoleFragment : Fragment() {
                 showSnackbar("Assistant timeline cleared")
                 true
             }
+            "/history" -> {
+                forceScrollOnNextTimelineUpdate = true
+                consoleViewModel.showHistory(argument.toIntOrNull() ?: 10)
+                true
+            }
+            "/search" -> {
+                if (argument.isBlank()) {
+                    showSnackbar("Use /search <keyword>")
+                } else {
+                    forceScrollOnNextTimelineUpdate = true
+                    consoleViewModel.showSessionList(query = argument)
+                }
+                true
+            }
+            "/delete" -> {
+                forceScrollOnNextTimelineUpdate = true
+                if (argument.isBlank()) {
+                    consoleViewModel.showSessionList(emphasizeDelete = true)
+                } else {
+                    val result = consoleViewModel.deleteSessions(argument)
+                    showSnackbar(result.message)
+                }
+                true
+            }
+            "/status" -> {
+                forceScrollOnNextTimelineUpdate = true
+                consoleViewModel.showStatus()
+                true
+            }
+            "/compress" -> {
+                forceScrollOnNextTimelineUpdate = true
+                consoleViewModel.requestConversationCompression()
+                true
+            }
+            "/memory" -> {
+                forceScrollOnNextTimelineUpdate = true
+                consoleViewModel.showMemoryCommand(argument)
+                true
+            }
             "/stop" -> {
                 val clearedQueuedPrompts = consoleViewModel.stopExecution()
                 if (clearedQueuedPrompts > 0) {
@@ -403,6 +448,22 @@ class AIAssistantConsoleFragment : Fragment() {
             }
             else -> false
         }
+    }
+
+    private fun handleSessionSwitchRequest(target: String) {
+        forceScrollOnNextTimelineUpdate = true
+        val switchedLabel = consoleViewModel.switchSession(target)
+        if (switchedLabel == null) {
+            showSnackbar("Session not found: $target")
+        } else {
+            showSnackbar("Switched to $switchedLabel")
+        }
+    }
+
+    private fun handleSessionDeleteRequest(target: String) {
+        forceScrollOnNextTimelineUpdate = true
+        val result = consoleViewModel.deleteSessions(target)
+        showSnackbar(result.message)
     }
 
     private fun scrollToBottom(

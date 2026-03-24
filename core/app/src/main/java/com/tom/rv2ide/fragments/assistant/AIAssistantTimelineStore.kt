@@ -111,6 +111,40 @@ internal class AIAssistantTimelineStore(context: Context) {
         }
     }
 
+    fun clearConversationSession(conversationSessionId: String) {
+        val normalizedSessionId = conversationSessionId.trim()
+        if (normalizedSessionId.isBlank()) {
+            return
+        }
+
+        runCatching {
+            val database = databaseHelper.writableDatabase
+            val selection = "${AIAssistantTimelineDatabaseHelper.COLUMN_SESSION_KEY} LIKE ?"
+            val selectionArgs = arrayOf("%|session:$normalizedSessionId|%")
+            database.beginTransaction()
+            try {
+                database.delete(
+                    AIAssistantTimelineDatabaseHelper.TABLE_TIMELINE_MESSAGE_PARTS,
+                    selection,
+                    selectionArgs
+                )
+                database.delete(
+                    AIAssistantTimelineDatabaseHelper.TABLE_TIMELINE_MESSAGES,
+                    selection,
+                    selectionArgs
+                )
+                database.delete(
+                    AIAssistantTimelineDatabaseHelper.TABLE_TIMELINE_SESSIONS,
+                    selection,
+                    selectionArgs
+                )
+                database.setTransactionSuccessful()
+            } finally {
+                database.endTransaction()
+            }
+        }
+    }
+
     private fun migrateLegacyIfNeeded(sessionKey: String) {
         val database = databaseHelper.writableDatabase
         if (database.sessionExists(sessionKey)) {
@@ -705,6 +739,22 @@ private fun AIAssistantTimelineItem.toPersistedMessage(
                 }
             }
         )
+        is AIAssistantSessionBrowserItem -> PersistedAIAssistantMessage(
+            messageId = messageId,
+            orderIndex = orderIndex,
+            type = "session-browser",
+            metadata = JSONObject().apply {
+                put("title", title)
+                put("subtitle", subtitle.orEmpty())
+            },
+            parts = sessions.mapIndexed { index, session ->
+                PersistedAIAssistantMessagePart(
+                    partIndex = index,
+                    type = "session",
+                    payload = session.toJson()
+                )
+            }
+        )
         is AIAssistantDiffItem -> PersistedAIAssistantMessage(
             messageId = messageId,
             orderIndex = orderIndex,
@@ -766,6 +816,14 @@ private fun PersistedAIAssistantMessage.toTimelineItemOrNull(): AIAssistantTimel
             body = partTextOrNull("body"),
             tone = runCatching { AIAssistantTone.valueOf(metadata.optString("tone")) }
                 .getOrDefault(AIAssistantTone.NEUTRAL),
+            id = messageId
+        )
+        "session-browser" -> AIAssistantSessionBrowserItem(
+            title = metadata.optString("title").ifBlank { "Sessions" },
+            subtitle = metadata.optString("subtitle").ifBlank { null },
+            sessions = parts
+                .filter { it.type == "session" }
+                .mapNotNull { it.payload.toSessionBrowserEntryOrNull() },
             id = messageId
         )
         "diff" -> {
@@ -849,6 +907,12 @@ private fun JSONObject.toTimelineItemOrNull(): AIAssistantTimelineItem? {
                 .getOrDefault(AIAssistantTone.NEUTRAL),
             id = optLong("id")
         )
+        "session-browser" -> AIAssistantSessionBrowserItem(
+            title = optString("title").ifBlank { "Sessions" },
+            subtitle = optString("subtitle").ifBlank { null },
+            sessions = optJSONArray("sessions").toSessionBrowserEntries(),
+            id = optLong("id")
+        )
         "diff" -> {
             val filePath = optString("filePath").trim()
             if (filePath.isBlank()) {
@@ -875,6 +939,7 @@ private fun AIAssistantTimelineItem.persistenceType(): String {
         is AIAssistantResponseItem -> "response"
         is AIAssistantStreamingResponseItem -> "stream"
         is AIAssistantStatusItem -> "status"
+        is AIAssistantSessionBrowserItem -> "session-browser"
         is AIAssistantDiffItem -> "diff"
     }
 }
@@ -909,6 +974,37 @@ private fun JSONObject.toToolItemOrNull(): AIAssistantToolItem? {
         workingDirectory = optString("workingDirectory").ifBlank { null },
         outputPreview = optString("outputPreview").ifBlank { null },
         id = optLong("id")
+    )
+}
+
+private fun JSONArray?.toSessionBrowserEntries(): List<AIAssistantSessionBrowserEntry> {
+    if (this == null) {
+        return emptyList()
+    }
+    return buildList {
+        for (index in 0 until length()) {
+            optJSONObject(index)
+                ?.toSessionBrowserEntryOrNull()
+                ?.let(::add)
+        }
+    }
+}
+
+private fun JSONObject.toSessionBrowserEntryOrNull(): AIAssistantSessionBrowserEntry? {
+    val sessionId = optString("sessionId").trim()
+    val title = optString("title").trim()
+    val meta = optString("meta").trim()
+    if (sessionId.isBlank() || title.isBlank() || meta.isBlank()) {
+        return null
+    }
+    return AIAssistantSessionBrowserEntry(
+        sessionId = sessionId,
+        order = optInt("order", 0).coerceAtLeast(0),
+        title = title,
+        summary = optString("summary").trim().ifBlank { null },
+        meta = meta,
+        isActive = optBoolean("isActive", false),
+        canDelete = optBoolean("canDelete", true)
     )
 }
 
@@ -1000,6 +1096,20 @@ private fun AIAssistantTimelineItem.toJson(): JSONObject {
             put("tone", tone.name)
             put("id", id)
         }
+        is AIAssistantSessionBrowserItem -> JSONObject().apply {
+            put("type", "session-browser")
+            put("title", title)
+            put("subtitle", subtitle.orEmpty())
+            put("id", id)
+            put(
+                "sessions",
+                JSONArray().apply {
+                    sessions.forEach { session ->
+                        put(session.toJson())
+                    }
+                }
+            )
+        }
         is AIAssistantDiffItem -> JSONObject().apply {
             put("type", "diff")
             put("filePath", filePath)
@@ -1028,5 +1138,17 @@ private fun AIAssistantToolItem.toJson(): JSONObject {
         put("workingDirectory", workingDirectory.orEmpty())
         put("outputPreview", outputPreview.orEmpty())
         put("id", id)
+    }
+}
+
+private fun AIAssistantSessionBrowserEntry.toJson(): JSONObject {
+    return JSONObject().apply {
+        put("sessionId", sessionId)
+        put("order", order)
+        put("title", title)
+        put("summary", summary.orEmpty())
+        put("meta", meta)
+        put("isActive", isActive)
+        put("canDelete", canDelete)
     }
 }

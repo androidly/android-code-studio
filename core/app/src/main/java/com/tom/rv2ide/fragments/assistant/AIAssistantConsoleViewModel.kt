@@ -6,8 +6,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tom.rv2ide.activities.ModificationData
 import com.tom.rv2ide.artificial.agents.AIAgentManager
+import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
 import com.tom.rv2ide.artificial.tools.AIToolCall
 import com.tom.rv2ide.artificial.tools.AIToolExecutionResult
+import com.tom.rv2ide.utils.Environment
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
 import java.util.Date
@@ -120,7 +123,12 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         appendTimelineItem(
             AIAssistantStatusItem(
                 title = "Commands",
-                body = "/new [name]  /list  /switch <n>\n/help  /review  /stop  /clear",
+                body = buildString {
+                    appendLine("/new [name]  /list  /switch <n|id|name>")
+                    appendLine("/history [n]  /search <keyword>  /delete <n|1,3-5>")
+                    appendLine("/status  /compress  /memory [add|global ...]")
+                    append("/help  /review  /stop  /clear")
+                },
                 tone = AIAssistantTone.NEUTRAL
             )
         )
@@ -146,34 +154,261 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         return activated.title
     }
 
-    fun showSessionList() {
-        val activeSessionId = activeAssistantSession?.id
+    fun showSessionList(
+        query: String? = null,
+        emphasizeDelete: Boolean = false
+    ) {
+        val normalizedQuery = query?.trim().orEmpty()
         val sessions = listAvailableSessions()
-        val body = if (sessions.isEmpty()) {
-            "No saved sessions yet. Use /new to start a fresh chat."
+        val filteredSessions = if (normalizedQuery.isBlank()) {
+            sessions
         } else {
-            buildString {
-                sessions.forEachIndexed { index, session ->
-                    append(if (session.id == activeSessionId) "* " else "  ")
-                    append(index + 1)
-                    append(". ")
-                    append(session.title)
-                    append("  ")
-                    append(formatSessionTimestamp(session.updatedAtMillis))
-                    appendLine()
-                }
-                appendLine()
-                append("Use /switch <number> to reopen a saved chat.")
-            }.trim()
+            filterSessions(sessions, normalizedQuery)
         }
+
+        if (filteredSessions.isEmpty()) {
+            appendTimelineItem(
+                AIAssistantStatusItem(
+                    title = if (normalizedQuery.isBlank()) "Sessions" else "Search",
+                    body = if (normalizedQuery.isBlank()) {
+                        "No saved sessions yet. Use /new to start a fresh chat."
+                    } else {
+                        "No sessions matched \"$normalizedQuery\"."
+                    },
+                    tone = AIAssistantTone.NEUTRAL
+                )
+            )
+        } else {
+            appendTimelineItem(
+                AIAssistantSessionBrowserItem(
+                    title = if (normalizedQuery.isBlank()) {
+                        "Sessions · ${filteredSessions.size}"
+                    } else {
+                        "Search · ${filteredSessions.size} hit" +
+                            if (filteredSessions.size == 1) "" else "s"
+                    },
+                    subtitle = buildString {
+                        if (normalizedQuery.isNotBlank()) {
+                            append("Keyword: ")
+                            append(normalizedQuery)
+                        } else {
+                            append("Current session is pinned. ")
+                            append(
+                                if (emphasizeDelete) {
+                                    "Use Delete to remove old chats."
+                                } else {
+                                    "Switch or delete directly from the card."
+                                }
+                            )
+                        }
+                    },
+                    sessions = filteredSessions.mapIndexed { index, session ->
+                        session.toBrowserEntry(order = index + 1)
+                    }
+                )
+            )
+        }
+        publishState()
+    }
+
+    fun showHistory(limit: Int = 10) {
+        val normalizedLimit = limit.coerceIn(1, 50)
+        val sessionKey = activeTimelineSessionKey ?: currentTimelineSessionKey()
+        if (sessionKey == null) {
+            appendTimelineItem(
+                AIAssistantStatusItem(
+                    title = "History",
+                    body = "No active session is loaded yet.",
+                    tone = AIAssistantTone.WARNING
+                )
+            )
+            publishState()
+            return
+        }
+
+        flushTimelinePersistence(sessionKey)
+        val recentEntries = timelineStore
+            .loadLatest(sessionKey, maxOf(normalizedLimit * 8, 48))
+            ?.entries
+            .orEmpty()
+            .map(PersistedAIAssistantTimelineEntry::item)
+            .toConversationHistoryLines()
+            .takeLast(normalizedLimit)
+
         appendTimelineItem(
             AIAssistantStatusItem(
-                title = "Sessions",
-                body = body,
+                title = "History",
+                body = if (recentEntries.isEmpty()) {
+                    "No user/assistant messages have been saved in this session yet."
+                } else {
+                    recentEntries.joinToString(separator = "\n\n")
+                },
                 tone = AIAssistantTone.NEUTRAL
             )
         )
         publishState()
+    }
+
+    fun showStatus() {
+        val sessionCount = listAvailableSessions().size
+        val codexSummary = runCatching { CodexCliConfig.getSettings() }
+            .getOrNull()
+            ?.takeIf { aiAgent.getCurrentProviderId() == "external" && it.isValid }
+            ?.summaryText()
+        appendTimelineItem(
+            AIAssistantStatusItem(
+                title = "Status",
+                body = buildString {
+                    appendLine("Provider: ${aiAgent.getCurrentProviderName()}")
+                    appendLine("Model: ${aiAgent.getCurrentModelName()}")
+                    appendLine("Session: ${activeAssistantSession?.title.orEmpty().ifBlank { "None" }}")
+                    appendLine("Queued: ${pendingPromptQueue.size}")
+                    appendLine("Running: ${if (executionJob?.isActive == true) "yes" else "no"}")
+                    appendLine("Timeline: ${timelineItems.size}/${totalPersistedTimelineCount}")
+                    appendLine("Saved sessions: $sessionCount")
+                    projectRootPath.takeIf { it.isNotBlank() }?.let { root ->
+                        appendLine("Project: $root")
+                    }
+                    codexSummary?.let { summary ->
+                        append("Codex: $summary")
+                    }
+                }.trim(),
+                tone = AIAssistantTone.NEUTRAL
+            )
+        )
+        publishState()
+    }
+
+    fun requestConversationCompression() {
+        val providerId = aiAgent.getCurrentProviderId()
+        val message = when (providerId) {
+            "custom" -> "The custom provider already auto-compacts old native turns when the context budget is exceeded."
+            "external" -> {
+                val settings = runCatching { CodexCliConfig.getSettings() }.getOrNull()
+                if (settings?.isValid == true) {
+                    "Managed Codex already has auto-compact configured at ${settings.autoCompactTokenLimit} tokens in ~/.codex/config.toml. A manual /compact bridge action is not exposed yet."
+                } else {
+                    "Codex auto-compact is not configured yet. Open Codex settings first."
+                }
+            }
+            else -> "This provider does not expose a native manual compact command in the current bridge. Use /new if you need a clean session."
+        }
+        appendTimelineItem(
+            AIAssistantStatusItem(
+                title = "Compress",
+                body = message,
+                tone = AIAssistantTone.NEUTRAL
+            )
+        )
+        publishState()
+    }
+
+    fun showMemoryCommand(rawArguments: String) {
+        val arguments = rawArguments.trim()
+        val projectMemoryFile = File(projectRootPath.ifBlank { "." }, "AGENTS.md")
+        val globalMemoryFile = File(File(Environment.HOME, ".codex"), "AGENTS.md")
+        val tokens = arguments.split(Regex("\\s+")).filter(String::isNotBlank)
+
+        when {
+            tokens.isEmpty() || tokens.first().equals("show", ignoreCase = true) -> {
+                appendTimelineItem(showMemoryFileItem(projectMemoryFile, isGlobal = false))
+            }
+            tokens.first().equals("help", ignoreCase = true) -> {
+                appendTimelineItem(
+                    AIAssistantStatusItem(
+                        title = "Memory",
+                        body = buildString {
+                            appendLine("/memory")
+                            appendLine("/memory add <text>")
+                            appendLine("/memory global")
+                            append("/memory global add <text>")
+                        },
+                        tone = AIAssistantTone.NEUTRAL
+                    )
+                )
+            }
+            tokens.first().equals("global", ignoreCase = true) && tokens.size == 1 -> {
+                appendTimelineItem(showMemoryFileItem(globalMemoryFile, isGlobal = true))
+            }
+            tokens.first().equals("global", ignoreCase = true) &&
+                (tokens.getOrNull(1)?.equals("add", ignoreCase = true) == true) -> {
+                appendTimelineItem(
+                    appendMemoryFileItem(
+                        file = globalMemoryFile,
+                        text = tokens.drop(2).joinToString(" ")
+                    )
+                )
+            }
+            tokens.first().equals("add", ignoreCase = true) -> {
+                appendTimelineItem(
+                    appendMemoryFileItem(
+                        file = projectMemoryFile,
+                        text = tokens.drop(1).joinToString(" ")
+                    )
+                )
+            }
+            else -> {
+                appendTimelineItem(
+                    AIAssistantStatusItem(
+                        title = "Memory",
+                        body = "Usage: /memory [add|global|global add|help]",
+                        tone = AIAssistantTone.WARNING
+                    )
+                )
+            }
+        }
+        publishState()
+    }
+
+    fun deleteSessions(target: String): AIAssistantSessionDeleteResult {
+        if (projectRootPath.isBlank()) {
+            return AIAssistantSessionDeleteResult(
+                deletedCount = 0,
+                activeSessionLabel = null,
+                message = "No project session is active yet."
+            )
+        }
+
+        val targets = resolveAssistantSessionTargets(target)
+        if (targets.isEmpty()) {
+            return AIAssistantSessionDeleteResult(
+                deletedCount = 0,
+                activeSessionLabel = activeAssistantSession?.title,
+                message = "No session matched: $target"
+            )
+        }
+
+        val wasActiveDeleted = activeAssistantSession?.id?.let { activeId ->
+            targets.any { session -> session.id == activeId }
+        } == true
+        val deletion = sessionRegistry.deleteSessions(
+            projectRoot = projectRootPath,
+            sessionIds = targets.map(AIAssistantChatSession::id)
+        )
+        deletion.deletedSessionIds.forEach(timelineStore::clearConversationSession)
+
+        if (wasActiveDeleted) {
+            deletion.activeSession?.let(::activateAssistantSession)
+        } else {
+            publishState()
+        }
+        showSessionList(emphasizeDelete = true)
+        return AIAssistantSessionDeleteResult(
+            deletedCount = deletion.deletedSessionIds.size,
+            activeSessionLabel = deletion.activeSession?.title ?: activeAssistantSession?.title,
+            message = buildString {
+                append("Deleted ${deletion.deletedSessionIds.size} session")
+                if (deletion.deletedSessionIds.size != 1) {
+                    append('s')
+                }
+                if (wasActiveDeleted) {
+                    deletion.activeSession?.title?.let { activeTitle ->
+                        append(" and switched to ")
+                        append(activeTitle)
+                    }
+                }
+            }
+        )
     }
 
     fun loadOlderHistory(): Boolean {
@@ -284,6 +519,7 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         resetRunTracking()
         if (appendUserItem) {
             appendTimelineItem(AIAssistantUserItem(prompt))
+            recordActiveSessionUserPrompt(prompt)
         }
         startAssistantStream("Preparing assistant run")
         publishState()
@@ -344,6 +580,7 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
                                 it.isNotBlank() && !it.contains("FILE_TO_MODIFY:")
                             } ?: buildModificationSummaryText(summary)
                             completeAssistantStream(response, fallbackText)
+                            recordActiveSessionAssistantReply()
                             clearCompletedToolTracking()
                             onExecutionFinished(executionToken)
                         }
@@ -355,6 +592,7 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
                     ) {
                         postExecutionUpdate(executionToken) {
                             completeAssistantStream(response, response)
+                            recordActiveSessionAssistantReply()
                             onExecutionFinished(executionToken)
                         }
                     }
@@ -626,6 +864,7 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         promptDraft = ""
         promptDraftDirty = true
         appendTimelineItem(AIAssistantUserItem(prompt))
+        recordActiveSessionUserPrompt(prompt)
         val queuedPrompt = QueuedPrompt(
             prompt = prompt,
             userMessageAlreadyAppended = true
@@ -1377,6 +1616,21 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         return sessionRegistry.listSessions(projectRootPath)
     }
 
+    private fun filterSessions(
+        sessions: List<AIAssistantChatSession>,
+        query: String
+    ): List<AIAssistantChatSession> {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) {
+            return sessions
+        }
+        return sessions.filter { session ->
+            session.id.startsWith(normalizedQuery, ignoreCase = true) ||
+                session.title.contains(normalizedQuery, ignoreCase = true) ||
+                session.summary?.contains(normalizedQuery, ignoreCase = true) == true
+        }
+    }
+
     private fun resolveAssistantSessionTarget(target: String): AIAssistantChatSession? {
         val normalizedTarget = target.trim()
         if (normalizedTarget.isBlank()) {
@@ -1392,8 +1646,42 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
             session.id.startsWith(normalizedTarget, ignoreCase = true) ||
                 session.title.equals(normalizedTarget, ignoreCase = true)
         } ?: sessions.firstOrNull { session ->
-            session.title.contains(normalizedTarget, ignoreCase = true)
+            session.title.contains(normalizedTarget, ignoreCase = true) ||
+                session.summary?.contains(normalizedTarget, ignoreCase = true) == true
         }
+    }
+
+    private fun resolveAssistantSessionTargets(target: String): List<AIAssistantChatSession> {
+        val sessions = listAvailableSessions()
+        if (sessions.isEmpty()) {
+            return emptyList()
+        }
+
+        val resolved = linkedMapOf<String, AIAssistantChatSession>()
+        target.split(',')
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .forEach { token ->
+                val rangeParts = token.split('-', limit = 2)
+                if (rangeParts.size == 2) {
+                    val start = rangeParts[0].trim().toIntOrNull()
+                    val end = rangeParts[1].trim().toIntOrNull()
+                    if (start != null && end != null) {
+                        val lower = minOf(start, end)
+                        val upper = maxOf(start, end)
+                        for (index in lower..upper) {
+                            sessions.getOrNull(index - 1)?.let { session ->
+                                resolved.putIfAbsent(session.id, session)
+                            }
+                        }
+                        return@forEach
+                    }
+                }
+                resolveAssistantSessionTarget(token)?.let { session ->
+                    resolved.putIfAbsent(session.id, session)
+                }
+            }
+        return resolved.values.toList()
     }
 
     private fun touchActiveAssistantSession() {
@@ -1402,12 +1690,144 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         sessionRegistry.touchSession(projectRoot, sessionId)
     }
 
+    private fun recordActiveSessionUserPrompt(prompt: String) {
+        val projectRoot = projectRootPath.takeIf { it.isNotBlank() } ?: return
+        val sessionId = activeAssistantSession?.id ?: return
+        val summary = prompt
+            .trim()
+            .replace(Regex("\\s+"), " ")
+            .takeIf(String::isNotBlank)
+        sessionRegistry.recordSessionTurn(
+            projectRoot = projectRoot,
+            sessionId = sessionId,
+            latestSummary = summary,
+            messageCountDelta = 1
+        )
+    }
+
+    private fun recordActiveSessionAssistantReply() {
+        val projectRoot = projectRootPath.takeIf { it.isNotBlank() } ?: return
+        val sessionId = activeAssistantSession?.id ?: return
+        sessionRegistry.recordSessionTurn(
+            projectRoot = projectRoot,
+            sessionId = sessionId,
+            messageCountDelta = 1
+        )
+    }
+
     private fun formatSessionTimestamp(timestampMillis: Long): String {
         if (timestampMillis <= 0L) {
             return "updated recently"
         }
         return SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
             .format(Date(timestampMillis))
+    }
+
+    private fun AIAssistantChatSession.toBrowserEntry(order: Int): AIAssistantSessionBrowserEntry {
+        val summaryText = summary?.trim()?.ifBlank { null }
+        val sessionMeta = buildString {
+            if (id == activeAssistantSession?.id) {
+                append("Current")
+                append(" · ")
+            }
+            append(
+                if (messageCount == 1) {
+                    "1 msg"
+                } else {
+                    "${messageCount.coerceAtLeast(0)} msgs"
+                }
+            )
+            append(" · ")
+            append(formatSessionTimestamp(updatedAtMillis))
+        }
+        return AIAssistantSessionBrowserEntry(
+            sessionId = id,
+            order = order,
+            title = title,
+            summary = summaryText,
+            meta = sessionMeta,
+            isActive = id == activeAssistantSession?.id
+        )
+    }
+
+    private fun List<AIAssistantTimelineItem>.toConversationHistoryLines(): List<String> {
+        return mapNotNull { item ->
+            when (item) {
+                is AIAssistantUserItem -> "User\n${item.prompt.trim()}"
+                is AIAssistantResponseItem -> item.response.trim()
+                    .takeIf(String::isNotBlank)
+                    ?.let { response -> "Assistant\n$response" }
+                is AIAssistantStreamingResponseItem -> item.response.trim()
+                    .takeIf(String::isNotBlank)
+                    ?.let { response -> "Assistant\n$response" }
+                else -> null
+            }
+        }
+    }
+
+    private fun showMemoryFileItem(file: File, isGlobal: Boolean): AIAssistantStatusItem {
+        val label = if (isGlobal) "Global memory" else "Project memory"
+        if (!file.exists()) {
+            return AIAssistantStatusItem(
+                title = "Memory",
+                body = "$label file is empty.\nPath: ${file.absolutePath}",
+                tone = AIAssistantTone.NEUTRAL
+            )
+        }
+
+        val content = runCatching { file.readText() }.getOrNull().orEmpty().trim()
+        return AIAssistantStatusItem(
+            title = "Memory",
+            body = if (content.isBlank()) {
+                "$label file is empty.\nPath: ${file.absolutePath}"
+            } else {
+                buildString {
+                    appendLine("$label · ${file.absolutePath}")
+                    appendLine()
+                    append(
+                        if (content.length > MAX_MEMORY_FILE_PREVIEW_CHARS) {
+                            content.take(MAX_MEMORY_FILE_PREVIEW_CHARS) + "\n\n... (truncated)"
+                        } else {
+                            content
+                        }
+                    )
+                }.trim()
+            },
+            tone = AIAssistantTone.NEUTRAL
+        )
+    }
+
+    private fun appendMemoryFileItem(file: File, text: String): AIAssistantStatusItem {
+        val normalizedText = text.trim()
+        if (normalizedText.isBlank()) {
+            return AIAssistantStatusItem(
+                title = "Memory",
+                body = "Usage: /memory add <text>",
+                tone = AIAssistantTone.WARNING
+            )
+        }
+
+        return runCatching {
+            file.parentFile?.mkdirs()
+            val existing = if (file.exists()) file.readText() else ""
+            val separator = when {
+                existing.isBlank() -> ""
+                existing.endsWith('\n') -> ""
+                else -> "\n"
+            }
+            file.writeText(existing + separator + "- $normalizedText\n")
+            AIAssistantStatusItem(
+                title = "Memory",
+                body = "Saved to ${file.absolutePath}",
+                tone = AIAssistantTone.SUCCESS
+            )
+        }.getOrElse { error ->
+            AIAssistantStatusItem(
+                title = "Memory",
+                body = error.message ?: "Unable to update the memory file.",
+                tone = AIAssistantTone.ERROR
+            )
+        }
     }
 
     private fun scheduleTimelinePersistence() {
@@ -1505,6 +1925,16 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
             is AIAssistantResponseItem -> item.copy(response = trimAssistantResponseText(item.response))
             is AIAssistantWelcomeItem -> item.copy(body = trimSmallTimelineText(item.body))
             is AIAssistantStatusItem -> item.copy(body = item.body?.let(::trimSmallTimelineText))
+            is AIAssistantSessionBrowserItem -> item.copy(
+                subtitle = item.subtitle?.let(::trimSmallTimelineText),
+                sessions = item.sessions.map { session ->
+                    session.copy(
+                        title = trimSmallTimelineText(session.title),
+                        summary = session.summary?.let(::trimSmallTimelineText),
+                        meta = trimSmallTimelineText(session.meta)
+                    )
+                }
+            )
             else -> item
         }
     }
@@ -1573,6 +2003,16 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
                     item.attachments.sumOf(::estimatedRetainedChars)
             }
             is AIAssistantStatusItem -> item.title.length + item.body.orEmpty().length
+            is AIAssistantSessionBrowserItem -> {
+                item.title.length +
+                    item.subtitle.orEmpty().length +
+                    item.sessions.sumOf { session ->
+                        session.sessionId.length +
+                            session.title.length +
+                            session.summary.orEmpty().length +
+                            session.meta.length
+                    }
+            }
             is AIAssistantHistoryDividerItem -> 0
             is AIAssistantDiffItem -> {
                 item.filePath.length +
@@ -1685,6 +2125,7 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         private const val MAX_VISIBLE_STREAM_RESPONSE_CHARS = 16_384
         private const val MAX_ASSISTANT_RESPONSE_CHARS = 96_000
         private const val MAX_SMALL_TIMELINE_TEXT_CHARS = 24_000
+        private const val MAX_MEMORY_FILE_PREVIEW_CHARS = 12_000
         private const val ASSISTANT_RESPONSE_TRUNCATED_NOTICE =
             "[Earlier assistant output truncated to keep the session stable]\n\n"
         private const val TIMELINE_TEXT_TRUNCATED_NOTICE =
@@ -1704,6 +2145,12 @@ data class AIAssistantConsoleUiState(
     val hiddenHistoryCount: Int = 0,
     val totalTimelineCount: Int = 0,
     val timelineItems: List<AIAssistantTimelineItem> = emptyList()
+)
+
+data class AIAssistantSessionDeleteResult(
+    val deletedCount: Int,
+    val activeSessionLabel: String?,
+    val message: String
 )
 
 enum class AIAssistantPromptDispatchResult {

@@ -10,7 +10,14 @@ internal data class AIAssistantChatSession(
     val id: String,
     val title: String,
     val createdAtMillis: Long,
-    val updatedAtMillis: Long
+    val updatedAtMillis: Long,
+    val summary: String? = null,
+    val messageCount: Int = 0
+)
+
+internal data class AIAssistantSessionDeletionResult(
+    val deletedSessionIds: List<String>,
+    val activeSession: AIAssistantChatSession?
 )
 
 internal class AIAssistantSessionRegistry(context: Context) {
@@ -92,6 +99,89 @@ internal class AIAssistantSessionRegistry(context: Context) {
         }
     }
 
+    fun recordSessionTurn(
+        projectRoot: String,
+        sessionId: String,
+        latestSummary: String? = null,
+        messageCountDelta: Int = 0
+    ) {
+        synchronized(lock) {
+            val registry = loadRegistry()
+            val projectState = registry.projects[normalizeProjectRoot(projectRoot)] ?: return
+            val targetSession = projectState.sessions.firstOrNull { it.id == sessionId } ?: return
+            targetSession.updatedAtMillis = System.currentTimeMillis()
+            latestSummary
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+                ?.let { targetSession.summary = it.take(MAX_SESSION_SUMMARY_CHARS) }
+            if (messageCountDelta != 0) {
+                targetSession.messageCount = (targetSession.messageCount + messageCountDelta).coerceAtLeast(0)
+            }
+            saveRegistry(registry)
+        }
+    }
+
+    fun deleteSessions(
+        projectRoot: String,
+        sessionIds: Collection<String>
+    ): AIAssistantSessionDeletionResult {
+        synchronized(lock) {
+            val normalizedSessionIds = sessionIds
+                .asSequence()
+                .map(String::trim)
+                .filter(String::isNotBlank)
+                .toSet()
+            if (normalizedSessionIds.isEmpty()) {
+                return AIAssistantSessionDeletionResult(
+                    deletedSessionIds = emptyList(),
+                    activeSession = loadRegistry()
+                        .projects[normalizeProjectRoot(projectRoot)]
+                        ?.findActive()
+                        ?.toImmutable()
+                )
+            }
+
+            val registry = loadRegistry()
+            val projectState = registry.projects[normalizeProjectRoot(projectRoot)]
+                ?: return AIAssistantSessionDeletionResult(emptyList(), null)
+            val deletedSessions = projectState.sessions
+                .filter { it.id in normalizedSessionIds }
+                .map(MutableAIAssistantChatSession::toImmutable)
+            if (deletedSessions.isEmpty()) {
+                return AIAssistantSessionDeletionResult(
+                    deletedSessionIds = emptyList(),
+                    activeSession = projectState.findActive()?.toImmutable()
+                )
+            }
+
+            projectState.sessions.removeAll { session -> session.id in normalizedSessionIds }
+            val nextActiveSession = when {
+                projectState.sessions.isEmpty() -> {
+                    val now = System.currentTimeMillis()
+                    projectState.createSession(
+                        title = "Session 1",
+                        timestamp = now
+                    )
+                }
+                projectState.activeSessionId in normalizedSessionIds -> {
+                    projectState.sessions.maxWithOrNull(
+                        compareBy<MutableAIAssistantChatSession> { it.updatedAtMillis }
+                            .thenBy { it.createdAtMillis }
+                    )?.also { nextSession ->
+                        projectState.activeSessionId = nextSession.id
+                    }
+                }
+                else -> projectState.findActive()
+            }
+
+            saveRegistry(registry)
+            return AIAssistantSessionDeletionResult(
+                deletedSessionIds = deletedSessions.map(AIAssistantChatSession::id),
+                activeSession = nextActiveSession?.toImmutable()
+            )
+        }
+    }
+
     private fun normalizeProjectRoot(projectRoot: String): String {
         return projectRoot.trim().ifBlank { "__global__" }
     }
@@ -139,6 +229,8 @@ internal class AIAssistantSessionRegistry(context: Context) {
                                             put("title", session.title)
                                             put("createdAtMillis", session.createdAtMillis)
                                             put("updatedAtMillis", session.updatedAtMillis)
+                                            put("summary", session.summary.orEmpty())
+                                            put("messageCount", session.messageCount)
                                         }
                                     )
                                 }
@@ -185,14 +277,18 @@ private data class MutableAIAssistantChatSession(
     val id: String,
     val title: String,
     val createdAtMillis: Long,
-    var updatedAtMillis: Long
+    var updatedAtMillis: Long,
+    var summary: String? = null,
+    var messageCount: Int = 0
 ) {
     fun toImmutable(): AIAssistantChatSession {
         return AIAssistantChatSession(
             id = id,
             title = title,
             createdAtMillis = createdAtMillis,
-            updatedAtMillis = updatedAtMillis
+            updatedAtMillis = updatedAtMillis,
+            summary = summary,
+            messageCount = messageCount
         )
     }
 }
@@ -218,9 +314,13 @@ private fun JSONArray?.toMutableSessions(): MutableList<MutableAIAssistantChatSe
                     updatedAtMillis = sessionJson.optLong(
                         "updatedAtMillis",
                         sessionJson.optLong("createdAtMillis", 0L)
-                    )
+                    ),
+                    summary = sessionJson.optString("summary").trim().ifBlank { null },
+                    messageCount = sessionJson.optInt("messageCount", 0).coerceAtLeast(0)
                 )
             )
         }
     }.toMutableList()
 }
+
+private const val MAX_SESSION_SUMMARY_CHARS = 280

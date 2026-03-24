@@ -58,52 +58,95 @@ internal class AIAssistantCommandSheetDialog(
         }
     }
 
-    private fun defaultCommands(): List<AIAssistantSlashCommandOption> {
-        return listOf(
-            AIAssistantSlashCommandOption(
-                commandText = "/new",
-                title = "New Session",
-                description = "Start a fresh assistant chat without deleting earlier sessions.",
-                behavior = AIAssistantSlashCommandBehavior.EXECUTE
-            ),
-            AIAssistantSlashCommandOption(
-                commandText = "/list",
-                title = "List Sessions",
-                description = "Show saved sessions for this project and their switch numbers.",
-                behavior = AIAssistantSlashCommandBehavior.EXECUTE
-            ),
-            AIAssistantSlashCommandOption(
-                commandText = "/switch ",
-                title = "Switch Session",
-                description = "Fill /switch into the input so you can jump to a previous chat.",
-                behavior = AIAssistantSlashCommandBehavior.INSERT
-            ),
-            AIAssistantSlashCommandOption(
-                commandText = "/help",
-                title = "Command Help",
-                description = "Show the built-in slash commands available in the assistant.",
-                behavior = AIAssistantSlashCommandBehavior.EXECUTE
-            ),
-            AIAssistantSlashCommandOption(
-                commandText = "/review",
-                title = "Review Changes",
-                description = "Open the current diff review if the last run edited files.",
-                behavior = AIAssistantSlashCommandBehavior.EXECUTE
-            ),
-            AIAssistantSlashCommandOption(
-                commandText = "/stop",
-                title = "Stop Run",
-                description = "Stop the active assistant run immediately.",
-                behavior = AIAssistantSlashCommandBehavior.EXECUTE
-            ),
-            AIAssistantSlashCommandOption(
-                commandText = "/clear",
-                title = "Clear Session",
-                description = "Clear only the current session timeline and conversation state.",
-                behavior = AIAssistantSlashCommandBehavior.EXECUTE
-            )
+    private fun defaultCommands(): List<AIAssistantSlashCommandOption> = listOf(
+        executeCommand(
+            commandText = "/new",
+            title = "New Session",
+            description = "Start a fresh assistant chat without deleting earlier sessions."
+        ),
+        executeCommand(
+            commandText = "/list",
+            title = "List Sessions",
+            description = "Show saved sessions for this project and their switch numbers."
+        ),
+        insertCommand(
+            commandText = "/switch ",
+            title = "Switch Session",
+            description = "Fill /switch so you can jump to a saved session by number."
+        ),
+        insertCommand(
+            commandText = "/history ",
+            title = "Session History",
+            description = "Fill /history to inspect prior turns or pull up a saved session trail."
+        ),
+        insertCommand(
+            commandText = "/search ",
+            title = "Search Sessions",
+            description = "Fill /search to look up sessions, prompts, or answers by keyword."
+        ),
+        insertCommand(
+            commandText = "/delete ",
+            title = "Delete Session",
+            description = "Fill /delete so you can remove an old session by number."
+        ),
+        insertCommand(
+            commandText = "/status",
+            title = "Session Status",
+            description = "Fill /status to check the active session, queue, and runtime state."
+        ),
+        insertCommand(
+            commandText = "/compress",
+            title = "Compress Context",
+            description = "Fill /compress to request a tighter session summary before continuing."
+        ),
+        insertCommand(
+            commandText = "/memory ",
+            title = "Project Memory",
+            description = "Fill /memory to inspect or update saved memory for this workspace."
+        ),
+        executeCommand(
+            commandText = "/review",
+            title = "Review Changes",
+            description = "Open the current diff review if the last run edited files."
+        ),
+        executeCommand(
+            commandText = "/stop",
+            title = "Stop Run",
+            description = "Stop the active assistant run immediately."
+        ),
+        executeCommand(
+            commandText = "/clear",
+            title = "Clear Session",
+            description = "Clear only the current session timeline and conversation state."
+        ),
+        executeCommand(
+            commandText = "/help",
+            title = "Command Help",
+            description = "Show the built-in slash-command help inside the assistant timeline."
         )
-    }
+    )
+
+    private fun executeCommand(
+        commandText: String,
+        title: String,
+        description: String
+    ): AIAssistantSlashCommandOption = AIAssistantSlashCommandOption(
+        commandText = commandText,
+        title = title,
+        description = description,
+        behavior = AIAssistantSlashCommandBehavior.EXECUTE
+    )
+
+    private fun insertCommand(
+        commandText: String,
+        title: String,
+        description: String
+    ): AIAssistantSlashCommandOption = AIAssistantSlashCommandOption(
+        commandText = commandText,
+        title = title,
+        description = description,
+        behavior = AIAssistantSlashCommandBehavior.INSERT
+    )
 }
 
 private class AIAssistantCommandSheetAdapter(

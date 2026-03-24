@@ -65,6 +65,23 @@ data class AIAssistantStatusItem(
     override val id: Long = nextAIAssistantTimelineItemId()
 ) : AIAssistantTimelineItem(id)
 
+data class AIAssistantSessionBrowserEntry(
+    val sessionId: String,
+    val order: Int,
+    val title: String,
+    val summary: String? = null,
+    val meta: String,
+    val isActive: Boolean,
+    val canDelete: Boolean = true
+)
+
+data class AIAssistantSessionBrowserItem(
+    val title: String,
+    val subtitle: String? = null,
+    val sessions: List<AIAssistantSessionBrowserEntry>,
+    override val id: Long = nextAIAssistantTimelineItemId()
+) : AIAssistantTimelineItem(id)
+
 data class AIAssistantHistoryDividerItem(
     val hiddenCount: Int,
     val visibleCount: Int,

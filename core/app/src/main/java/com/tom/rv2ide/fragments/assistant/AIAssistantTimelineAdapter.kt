@@ -4,6 +4,7 @@ import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.AttrRes
 import androidx.core.view.isVisible
@@ -11,13 +12,16 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.tom.rv2ide.R
 
 class AIAssistantTimelineAdapter(
-    private val onDiffClicked: (AIAssistantDiffItem) -> Unit
+    private val onDiffClicked: (AIAssistantDiffItem) -> Unit,
+    private val onSessionSwitchRequested: ((String) -> Unit)? = null,
+    private val onSessionDeleteRequested: ((String) -> Unit)? = null
 ) : ListAdapter<AIAssistantTimelineItem, RecyclerView.ViewHolder>(TimelineDiffCallback) {
     private val streamAttachmentUiStates = mutableMapOf<Long, StreamAttachmentUiState>()
 
@@ -46,7 +50,7 @@ class AIAssistantTimelineAdapter(
     override fun getItemId(position: Int): Long = getItem(position).id
 
     override fun getItemViewType(position: Int): Int {
-        return when (getItem(position)) {
+        return when (val item = getItem(position)) {
             is AIAssistantHistoryDividerItem -> VIEW_TYPE_HISTORY
             is AIAssistantUserItem -> VIEW_TYPE_USER
             is AIAssistantStreamingResponseItem -> VIEW_TYPE_STREAMING_RESPONSE
@@ -54,6 +58,7 @@ class AIAssistantTimelineAdapter(
             is AIAssistantWelcomeItem -> VIEW_TYPE_MESSAGE
             is AIAssistantDiffItem -> VIEW_TYPE_DIFF
             is AIAssistantStatusItem -> VIEW_TYPE_STATUS
+            is AIAssistantSessionBrowserItem -> VIEW_TYPE_SESSION_BROWSER
         }
     }
 
@@ -61,6 +66,7 @@ class AIAssistantTimelineAdapter(
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
             VIEW_TYPE_HISTORY -> HistoryDividerViewHolder(inflater.inflate(R.layout.item_ai_assistant_history, parent, false))
+            VIEW_TYPE_SESSION_BROWSER -> SessionBrowserViewHolder(inflater.inflate(R.layout.item_ai_assistant_session_browser, parent, false))
             VIEW_TYPE_STREAMING_RESPONSE -> StreamingResponseViewHolder(inflater.inflate(R.layout.item_ai_assistant_stream, parent, false))
             VIEW_TYPE_USER -> UserViewHolder(inflater.inflate(R.layout.item_ai_assistant_user, parent, false))
             VIEW_TYPE_DIFF -> DiffViewHolder(inflater.inflate(R.layout.item_ai_assistant_diff, parent, false), onDiffClicked)
@@ -78,6 +84,7 @@ class AIAssistantTimelineAdapter(
             is AIAssistantWelcomeItem -> (holder as MessageViewHolder).bind(item.title, item.body, item.id)
             is AIAssistantDiffItem -> (holder as DiffViewHolder).bind(item)
             is AIAssistantStatusItem -> (holder as StatusViewHolder).bind(item)
+            is AIAssistantSessionBrowserItem -> (holder as SessionBrowserViewHolder).bind(item)
         }
     }
 
@@ -132,6 +139,96 @@ class AIAssistantTimelineAdapter(
                 "${item.hiddenCount} earlier messages"
             }
             subtitle.text = "Showing recent ${item.visibleCount} of ${item.totalCount}. Scroll up to load more."
+        }
+    }
+
+    private inner class SessionBrowserViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val title = itemView.findViewById<TextView>(R.id.sessionBrowserTitle)
+        private val subtitle = itemView.findViewById<TextView>(R.id.sessionBrowserSubtitle)
+        private val empty = itemView.findViewById<TextView>(R.id.sessionBrowserEmpty)
+        private val rowsContainer = itemView.findViewById<LinearLayout>(R.id.sessionBrowserRowsContainer)
+        private val rowInflater = LayoutInflater.from(itemView.context)
+
+        fun bind(item: AIAssistantSessionBrowserItem) {
+            title.text = item.title
+            subtitle.text = item.subtitle.orEmpty()
+            subtitle.isVisible = !item.subtitle.isNullOrBlank()
+            rowsContainer.removeAllViews()
+            val hasRows = item.sessions.isNotEmpty()
+            rowsContainer.isVisible = hasRows
+            empty.text = "No saved sessions yet."
+            empty.isVisible = !hasRows
+            if (!hasRows) {
+                return
+            }
+            item.sessions.forEach { session ->
+                val rowView = rowInflater.inflate(
+                    R.layout.item_ai_assistant_session_browser_row,
+                    rowsContainer,
+                    false
+                )
+                bindRow(rowView, session)
+                rowsContainer.addView(rowView)
+            }
+        }
+
+        private fun bindRow(
+            rowView: View,
+            row: AIAssistantSessionBrowserEntry
+        ) {
+            val rowCard = rowView.findViewById<MaterialCardView>(R.id.sessionRowCard)
+            val rowTitle = rowView.findViewById<TextView>(R.id.sessionRowTitle)
+            val rowState = rowView.findViewById<TextView>(R.id.sessionRowState)
+            val rowSummary = rowView.findViewById<TextView>(R.id.sessionRowSummary)
+            val rowMeta = rowView.findViewById<TextView>(R.id.sessionRowMeta)
+            val switchButton = rowView.findViewById<MaterialButton>(R.id.sessionRowSwitchButton)
+            val deleteButton = rowView.findViewById<MaterialButton>(R.id.sessionRowDeleteButton)
+            rowTitle.text = buildString {
+                append(row.order)
+                append(". ")
+                append(row.title)
+            }
+            rowSummary.text = row.summary.orEmpty()
+            rowSummary.isVisible = !row.summary.isNullOrBlank()
+            rowMeta.text = row.meta.orEmpty()
+            rowMeta.isVisible = !row.meta.isNullOrBlank()
+            rowState.text = if (row.isActive) {
+                "Current"
+            } else {
+                ""
+            }
+            rowState.isVisible = row.isActive
+            switchButton.text = if (row.isActive) "Current" else "Switch"
+            deleteButton.text = "Delete"
+            switchButton.isEnabled = !row.isActive && onSessionSwitchRequested != null && row.sessionId.isNotBlank()
+            deleteButton.isEnabled = row.canDelete && onSessionDeleteRequested != null && row.sessionId.isNotBlank()
+            switchButton.alpha = if (switchButton.isEnabled) 1f else 0.72f
+            deleteButton.alpha = if (deleteButton.isEnabled) 1f else 0.72f
+            switchButton.setOnClickListener { onSessionSwitchRequested?.invoke(row.sessionId) }
+            deleteButton.setOnClickListener { onSessionDeleteRequested?.invoke(row.sessionId) }
+
+            val containerAttr: Int
+            val textAttr: Int
+            val strokeAttr: Int
+            if (row.isActive) {
+                containerAttr = com.google.android.material.R.attr.colorSecondaryContainer
+                textAttr = com.google.android.material.R.attr.colorOnSecondaryContainer
+                strokeAttr = com.google.android.material.R.attr.colorSecondary
+            } else {
+                containerAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest
+                textAttr = com.google.android.material.R.attr.colorOnSurface
+                strokeAttr = com.google.android.material.R.attr.colorOutlineVariant
+            }
+            applyCardTone(rowCard, itemView, containerAttr, textAttr, rowTitle, rowSummary, rowMeta)
+            rowCard.strokeColor = MaterialColors.getColor(itemView, strokeAttr, 0)
+            if (row.isActive) {
+                rowState.setBackgroundColor(
+                    MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorSecondary, 0)
+                )
+                rowState.setTextColor(
+                    MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorOnSecondary, 0)
+                )
+            }
         }
     }
 
@@ -339,13 +436,14 @@ class AIAssistantTimelineAdapter(
         }
     }
 
-        companion object {
+    companion object {
         private const val VIEW_TYPE_USER = 0
         private const val VIEW_TYPE_MESSAGE = 1
         private const val VIEW_TYPE_STATUS = 2
         private const val VIEW_TYPE_HISTORY = 3
         private const val VIEW_TYPE_DIFF = 4
         private const val VIEW_TYPE_STREAMING_RESPONSE = 5
+        private const val VIEW_TYPE_SESSION_BROWSER = 6
         private val toolAttachmentViewPool = RecyclerView.RecycledViewPool()
         private val TimelineDiffCallback = object : DiffUtil.ItemCallback<AIAssistantTimelineItem>() {
             override fun areItemsTheSame(
