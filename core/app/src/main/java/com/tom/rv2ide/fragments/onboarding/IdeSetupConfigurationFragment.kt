@@ -34,7 +34,6 @@ import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.URLSpan
 import android.view.ViewGroup
-import android.widget.Toast
 import android.widget.ArrayAdapter
 import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
@@ -108,6 +107,7 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
         ndkVersionLayout.isEnabled = isChecked
         installGit.isEnabled = isChecked
         installOpenssh.isEnabled = isChecked
+        installCodexCli.isEnabled = isChecked
       }
 
       val sdkVersions = SdkVersion.entries.map { "SDK ${it.version}" }.reversed()
@@ -141,8 +141,6 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
           )
       )
 
-      installCodexCli.text =
-          if (CodexTermuxBridge.status().installed) "Reinstall Codex CLI" else "Install Codex CLI"
       packageRepositoryUrl.setText(
           TermuxPackageRepository.getConfiguredMainRepo(requireContext()).orEmpty()
       )
@@ -153,19 +151,6 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
       refreshNpmRegistrySummary()
       packageRepositoryUrl.doAfterTextChanged { refreshPackageRepositorySummary() }
       npmRegistryUrl.doAfterTextChanged { refreshNpmRegistrySummary() }
-      installCodexCli.setOnClickListener {
-        persistConfiguredRegistries()
-        CodexTermuxBridge.installAndConfigure(
-            context = requireContext(),
-            selectProvider = true,
-        )
-        Toast.makeText(
-                requireContext(),
-                "Opened Codex CLI installer and applied the preset",
-                Toast.LENGTH_SHORT,
-            )
-            .show()
-      }
     }
 
     updateConnectionStatus()
@@ -197,6 +182,18 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
       args.setArgument(IdeSetupArgument.WITH_OPENSSH)
     }
     return args.toTypedArray()
+  }
+
+  fun buildPostSetupCommand(): String? {
+    persistConfiguredRegistries()
+    if (!isAutoInstall() || !content.installCodexCli.isChecked) {
+      return null
+    }
+    CodexTermuxBridge.ensureManagedPreset(
+        context = requireContext(),
+        selectProvider = false,
+    )
+    return CodexTermuxBridge.buildInstallerCommand(requireContext())
   }
 
   private fun persistConfiguredRegistries() {

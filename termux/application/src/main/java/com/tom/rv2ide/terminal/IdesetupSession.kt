@@ -22,11 +22,7 @@ import com.termux.shared.file.FileUtils
 import com.termux.shared.shell.command.ExecutionCommand
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession
 import com.termux.terminal.TerminalSession
-import com.tom.rv2ide.app.configuration.CpuArch
-import com.tom.rv2ide.app.configuration.IDEBuildConfigProvider
-import com.tom.rv2ide.managers.ToolsManager
 import java.io.File
-import java.io.FileOutputStream
 import org.slf4j.LoggerFactory
 
 /**
@@ -41,77 +37,45 @@ private constructor(
     executionCommand: ExecutionCommand,
     termuxSessionClient: TermuxSessionClient?,
     setStdoutOnExit: Boolean,
-    private val script: File,
+    private val tempFiles: List<File>,
 ) : TermuxSession(terminalSession, executionCommand, termuxSessionClient, setStdoutOnExit) {
 
   companion object {
 
-    private val log = LoggerFactory.getLogger(IdesetupSession::class.java)
+        private val log = LoggerFactory.getLogger(IdesetupSession::class.java)
 
-    @JvmStatic
-    fun wrap(session: TermuxSession?, script: File): IdesetupSession? {
-      return session?.let { IdesetupSession(it, script) }
-    }
-
-    @JvmStatic
-    fun createScript(context: Context): File? {
-      // Create temp file with proper executable name
-      val tempDir = File(context.filesDir, "temp")
-      if (!tempDir.exists()) {
-        tempDir.mkdirs()
-      }
-      val script = File(tempDir, "idesetup")
-
-      // write script contents
-      if (!writeIdesetupScript(context, script)) {
-        return null
-      }
-
-      // make it readable and executable
-      FileUtils.setFilePermissions("idesetupScript", script.absolutePath, "rwx")
-
-      return script
-    }
-
-    private fun writeIdesetupScript(context: Context, script: File): Boolean {
-      return try {
-        val cpuArch = IDEBuildConfigProvider.getInstance().cpuArch
-        val folderName =
-            when (cpuArch) {
-              com.tom.rv2ide.app.configuration.CpuArch.AARCH64 -> "arm64"
-              com.tom.rv2ide.app.configuration.CpuArch.ARM -> "arm"
-              com.tom.rv2ide.app.configuration.CpuArch.X86_64 -> "x86_64"
-              com.tom.rv2ide.app.configuration.CpuArch.X86 -> "x86"
-            }
-        context.assets.open(ToolsManager.getCommonAsset("${folderName}/idesetup")).use { inputStream
-          ->
-          FileOutputStream(script).use { outputStream -> inputStream.copyTo(outputStream) }
+        @JvmStatic
+        internal fun wrap(session: TermuxSession?, tempFiles: List<File>): IdesetupSession? {
+            return session?.let { IdesetupSession(it, tempFiles) }
         }
-        true
-      } catch (e: Exception) {
-        log.error("Failed to write idesetup script: {}", e.message, e)
-        false
-      }
+
+        @JvmStatic
+        internal fun createLaunchArtifacts(
+            context: Context,
+            postSetupCommand: String?
+        ): IdesetupLaunchArtifacts? {
+          return IdesetupLaunchScriptFactory.create(context, postSetupCommand)
+        }
     }
-  }
 
   private constructor(
       src: TermuxSession,
-      script: File,
+      tempFiles: List<File>,
   ) : this(
       src.terminalSession,
       src.executionCommand,
       src.termuxSessionClient,
       src.isSetStdoutOnExit,
-      script,
+      tempFiles,
   )
 
   override fun finish() {
     super.finish()
-    // Delete the temporary script file once the session is finished
-    val error = FileUtils.deleteFile("idesetupScript", script.absolutePath, true)
-    if (error != null) {
-      log.error(error.errorLogString)
+    tempFiles.distinctBy { it.absolutePath }.forEach { file ->
+      val error = FileUtils.deleteFile("idesetupScript", file.absolutePath, true)
+      if (error != null) {
+        log.error(error.errorLogString)
+      }
     }
   }
 }

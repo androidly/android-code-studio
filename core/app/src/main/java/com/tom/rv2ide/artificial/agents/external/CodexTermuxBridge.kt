@@ -186,7 +186,7 @@ object CodexTermuxBridge {
         val installIntent = Intent(context, TerminalActivity::class.java).apply {
             putExtra(
                 TerminalActivity.EXTRA_SCRIPTED_SESSION_COMMAND,
-                buildInstallCommand(context)
+                buildInstallerCommand(context)
             )
             putExtra(
                 TerminalActivity.EXTRA_SCRIPTED_SESSION_NAME,
@@ -205,6 +205,10 @@ object CodexTermuxBridge {
             }
         }
         context.startActivity(installIntent)
+    }
+
+    fun buildInstallerCommand(context: Context): String {
+        return buildInstallCommand(context)
     }
 
     private fun buildInstallCommand(context: Context): String {

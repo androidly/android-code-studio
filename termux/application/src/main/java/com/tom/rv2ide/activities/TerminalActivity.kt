@@ -58,6 +58,7 @@ class TerminalActivity : TermuxActivity() {
 
     const val EXTRA_ONBOARDING_RUN_IDESETUP = "ide.onboarding.terminal.runIdesetup"
     const val EXTRA_ONBOARDING_RUN_IDESETUP_ARGS = "ide.onboarding.terminal.runIdesetup.args"
+    const val EXTRA_ONBOARDING_POST_SETUP_COMMAND = "ide.onboarding.terminal.postSetupCommand"
     const val EXTRA_SCRIPTED_SESSION_COMMAND = "ide.terminal.scripted.command"
     const val EXTRA_SCRIPTED_SESSION_NAME = "ide.terminal.scripted.name"
     const val EXTRA_SCRIPTED_SESSION_WORKDIR = "ide.terminal.scripted.workdir"
@@ -108,8 +109,9 @@ class TerminalActivity : TermuxActivity() {
     if (intent != null) {
       val runIdesetup = intent.getBooleanExtra(EXTRA_ONBOARDING_RUN_IDESETUP, false)
       val runIdesetupArgs = intent.getStringArrayExtra(EXTRA_ONBOARDING_RUN_IDESETUP_ARGS)
+      val postSetupCommand = intent.getStringExtra(EXTRA_ONBOARDING_POST_SETUP_COMMAND)
       if (runIdesetup && !runIdesetupArgs.isNullOrEmpty()) {
-        addIdesetupSession(runIdesetupArgs)
+        addIdesetupSession(runIdesetupArgs, postSetupCommand)
         return
       }
 
@@ -134,9 +136,12 @@ class TerminalActivity : TermuxActivity() {
     )
   }
 
-  private fun addIdesetupSession(args: Array<String>) {
-    val script =
-        IdesetupSession.createScript(this)
+  private fun addIdesetupSession(
+      args: Array<String>,
+      postSetupCommand: String?
+  ) {
+    val launchArtifacts =
+        IdesetupSession.createLaunchArtifacts(this, postSetupCommand)
             ?: run {
               log.error("Failed to add idesetup session. Cannot create script.")
               flashError(R.string.msg_cannot_create_terminal_session)
@@ -148,14 +153,14 @@ class TerminalActivity : TermuxActivity() {
     val session =
         IdesetupSession.wrap(
             termuxService.createTermuxSession(
-                /* executablePath = */ script.absolutePath,
+                /* executablePath = */ launchArtifacts.executable.absolutePath,
                 /* arguments = */ args,
                 /* stdin = */ null,
                 /* workingDirectory = */ Environment.HOME.absolutePath,
                 /* isFailSafe = */ false,
                 /* sessionName = */ "IDE setup",
             ),
-            script,
+            launchArtifacts.tempFiles,
         )
 
     session

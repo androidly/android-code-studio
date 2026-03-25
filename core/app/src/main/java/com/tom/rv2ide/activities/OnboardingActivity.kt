@@ -170,6 +170,12 @@ class OnboardingActivity : AppIntro2() {
             TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
             currentFragment.buildIdeSetupArguments(),
         )
+        currentFragment.buildPostSetupCommand()?.let { postSetupCommand ->
+          intent.putExtra(
+              TerminalActivity.EXTRA_ONBOARDING_POST_SETUP_COMMAND,
+              postSetupCommand,
+          )
+        }
       }
       terminalActivityCallback.launch(intent)
       return
