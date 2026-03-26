@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="ai_assistant_provider_gemini">Google Gemini</string>
+    <string name="ai_assistant_provider_openai">OpenAI</string>
+    <string name="ai_assistant_provider_claude">Anthropic Claude</string>
+    <string name="ai_assistant_provider_deepseek">DeepSeek</string>
+    <string name="ai_assistant_provider_grok">xAI Grok</string>
+    <string name="ai_assistant_provider_local_llm">Local LLM</string>
+    <string name="ai_assistant_provider_codex_cli">Codex CLI</string>
+    <string name="ai_assistant_provider_custom">Custom Provider</string>
+
+    <string name="ai_assistant_auto_switch_title">Auto-switch Provider</string>
+    <string name="ai_assistant_auto_switch_summary">Switch to another configured provider on rate-limit, quota, or invalid-key errors</string>
+    <string name="ai_assistant_tool_execution_title">AI Tool Execution</string>
+    <string name="ai_assistant_tool_execution_summary">Allow builds, focused reads/writes, safe terminal commands, and Termux package actions</string>
+    <string name="ai_assistant_provider_title">AI Provider</string>
+    <string name="ai_assistant_select_provider_title">Select AI Provider</string>
+    <string name="ai_assistant_current_value">Current: %1$s</string>
+    <string name="ai_assistant_current_value_with_detail">Current: %1$s • %2$s</string>
+    <string name="ai_assistant_model_title">AI Model</string>
+    <string name="ai_assistant_no_models_configured">No models configured for %1$s</string>
+    <string name="ai_assistant_select_model_title">Select AI Model</string>
+    <string name="ai_assistant_no_model_selected">No model selected</string>
+    <string name="ai_assistant_active_custom_profile_title">Active Custom Profile</string>
+    <string name="ai_assistant_select_active_custom_profile_title">Select Active Custom Profile</string>
+    <string name="ai_assistant_no_custom_profile_configured">No custom profile configured</string>
+    <string name="ai_assistant_codex_bridge_title">Codex CLI Bridge</string>
+    <string name="ai_assistant_codex_preset_applied">Codex bridge preset applied</string>
+    <string name="ai_assistant_codex_bridge_active">managed session bridge active</string>
+    <string name="ai_assistant_codex_bridge_summary_with_status">%1$s • %2$s</string>
+    <string name="ai_assistant_codex_cli_config_title">Codex CLI Config</string>
+    <string name="ai_assistant_codex_cli_config_summary">Configure provider ID, base URL, key, and model for the Termux Codex bridge</string>
+    <string name="ai_assistant_install_codex_cli_title">Install Codex CLI</string>
+    <string name="ai_assistant_install_codex_cli_opened">Opened Codex CLI installer and applied the preset</string>
+    <string name="ai_assistant_add_custom_profile_title">Add Custom Profile</string>
+    <string name="ai_assistant_add_custom_profile_summary_first">Create your first custom provider profile</string>
+    <string name="ai_assistant_add_custom_profile_summary_more">Create another reusable custom provider profile</string>
+    <string name="ai_assistant_edit_custom_profile_title">Edit Active Custom Profile</string>
+    <string name="ai_assistant_edit_custom_profile_summary">Edit %1$s</string>
+    <string name="ai_assistant_no_custom_profile_to_edit">No custom profile to edit</string>
+    <string name="ai_assistant_delete_custom_profile_title">Delete Active Custom Profile</string>
+    <string name="ai_assistant_delete_custom_profile_summary">Delete %1$s</string>
+    <string name="ai_assistant_no_custom_profile_to_delete">No custom profile to delete</string>
+    <string name="ai_assistant_delete_custom_profile_dialog_title">Delete Custom Profile</string>
+    <string name="ai_assistant_delete_custom_profile_dialog_message">Delete \'%1$s\'?</string>
+    <string name="ai_assistant_delete_custom_profile_failed">Failed to delete custom profile</string>
+    <string name="ai_assistant_open_custom_provider_editor_failed">Unable to open the custom provider editor from this screen</string>
+    <string name="ai_assistant_open_codex_editor_failed">Unable to open the Codex CLI editor from this screen</string>
+
+    <string name="ai_assistant_api_key_click_to_set">Click to set API key</string>
+    <string name="ai_assistant_api_key_masked_summary">API Key: %1$s…</string>
+    <string name="ai_assistant_api_key_hint_grok">Enter your xAI Grok API key</string>
+    <string name="ai_assistant_api_key_hint_gemini">Enter your Google Gemini API key</string>
+    <string name="ai_assistant_api_key_hint_deepseek">Enter your Deepseek API key</string>
+    <string name="ai_assistant_api_key_hint_openai">Enter your OpenAI API key</string>
+    <string name="ai_assistant_api_key_hint_anthropic">Enter your Anthropic API key</string>
+    <string name="ai_assistant_api_key_dialog_title_grok">Grok API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_gemini">Gemini API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_deepseek">Deepseek API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_openai">OpenAI API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_anthropic">Anthropic API Key</string>
+    <string name="ai_assistant_api_key_dialog_message_grok">Enter your xAI Grok API key</string>
+    <string name="ai_assistant_api_key_dialog_message_gemini">Enter your Google Gemini API key</string>
+    <string name="ai_assistant_api_key_dialog_message_deepseek">Enter your Deepseek API key</string>
+    <string name="ai_assistant_api_key_dialog_message_openai">Enter your OpenAI API key</string>
+    <string name="ai_assistant_api_key_dialog_message_anthropic">Enter your Anthropic API key</string>
+
+    <string name="ai_assistant_preferences_custom_profiles_title">Custom Profiles</string>
+    <string name="ai_assistant_preferences_custom_profiles_summary">Switch between reusable gateway profiles and manage them here.</string>
+    <string name="ai_assistant_preferences_active_custom_profile_hint">Active Custom Profile</string>
+    <string name="ai_assistant_preferences_codex_bridge_description">Bridge the assistant to Termux Codex sessions. The managed bridge follows the Codex flow and no longer exposes a command template.</string>
+    <string name="ai_assistant_preferences_configure_codex">Configure Codex</string>
+    <string name="ai_assistant_preferences_apply_preset">Apply Preset</string>
+    <string name="ai_assistant_preferences_auto_switch_toggle_summary">Automatically switch provider on errors</string>
+    <string name="ai_assistant_preferences_tool_execution_toggle_summary">Allow AI to run builds and safe Termux commands</string>
+    <string name="ai_assistant_preferences_code_completion_title">Code Completion</string>
+    <string name="ai_assistant_preferences_code_completion_summary">Enable AI-powered code suggestions</string>
+    <string name="ai_assistant_preferences_provider_label">Provider:</string>
+    <string name="ai_assistant_preferences_model_label">Model:</string>
+    <string name="ai_assistant_preferences_not_set">Not set</string>
+    <string name="ai_assistant_custom_profile_active_name">%1$s (%2$s)</string>
+
+    <string name="ai_assistant_console_engine_default">Codex</string>
+    <string name="ai_assistant_console_configure">Config</string>
+    <string name="ai_assistant_console_input_hint">Message or /command</string>
+    <string name="ai_assistant_console_send_request">Send request</string>
+    <string name="ai_assistant_console_shortcuts" translatable="false">/new  /list  /switch  /help</string>
+    <string name="ai_assistant_console_review">Review</string>
+    <string name="ai_assistant_console_clear">Clear</string>
+    <string name="ai_assistant_console_stop">Stop</string>
+    <string name="ai_assistant_console_latest">Latest</string>
+    <string name="ai_assistant_command_sheet_title">Assistant Commands</string>
+    <string name="ai_assistant_command_sheet_summary">Session, history, and run controls. Use Run for supported actions or Insert to stage a command in the composer.</string>
+    <string name="ai_assistant_file_permissions_title">AI File Write Permissions</string>
+    <string name="ai_assistant_file_permissions_enable">Enable AI file writing</string>
+    <string name="ai_assistant_file_permissions_confirm">Require confirmation before writing</string>
+    <string name="ai_assistant_file_permissions_backup">Auto backup files before writing</string>
+    <string name="ai_assistant_file_permissions_warning">Warning: Enabling file writing allows AI to modify your project files. Always review changes before applying.</string>
+
+    <string name="ai_assistant_custom_provider_dialog_title">Configure Custom Provider</string>
+    <string name="ai_assistant_custom_provider_dialog_summary">Supports OpenAI Chat, OpenAI Responses, and Claude Messages compatible gateways.</string>
+    <string name="ai_assistant_custom_provider_profile_name_hint">Profile Name</string>
+    <string name="ai_assistant_custom_provider_profile_name_example" translatable="false">NewAPI Primary</string>
+    <string name="ai_assistant_base_url_hint">Base URL</string>
+    <string name="ai_assistant_base_url_example" translatable="false">https://your-newapi-domain.com</string>
+    <string name="ai_assistant_api_key_hint">API Key</string>
+    <string name="ai_assistant_custom_provider_api_type_hint">API Type</string>
+    <string name="ai_assistant_custom_provider_api_type_openai_chat">OpenAI Chat</string>
+    <string name="ai_assistant_custom_provider_api_type_openai_responses">OpenAI Responses</string>
+    <string name="ai_assistant_custom_provider_api_type_claude_messages">Claude Messages</string>
+    <string name="ai_assistant_custom_provider_model_id_hint">Model ID</string>
+    <string name="ai_assistant_custom_provider_status_text">Use Fetch Models for NewAPI / OpenAI-compatible domains. You can also type a model ID manually.</string>
+    <string name="ai_assistant_fetch_models">Fetch Models</string>
+
+    <string name="ai_assistant_codex_dialog_title">Configure Codex CLI</string>
+    <string name="ai_assistant_codex_dialog_summary">Writes a managed Codex provider entry for the Termux bridge. The bridge exports Responses-compatible settings only.</string>
+    <string name="ai_assistant_codex_provider_id_hint">Provider ID</string>
+    <string name="ai_assistant_codex_provider_id_example" translatable="false">OpenAI</string>
+    <string name="ai_assistant_codex_provider_name_hint">Provider Name</string>
+    <string name="ai_assistant_codex_provider_name_example" translatable="false">OpenAI</string>
+    <string name="ai_assistant_codex_auth_mode_hint">Auth Mode</string>
+    <string name="ai_assistant_codex_model_hint">Model</string>
+    <string name="ai_assistant_codex_review_model_hint">Review Model</string>
+    <string name="ai_assistant_codex_reasoning_hint">Reasoning Effort</string>
+    <string name="ai_assistant_codex_context_window_hint">Context Window</string>
+    <string name="ai_assistant_codex_auto_compact_hint">Auto Compact Token Limit</string>
+    <string name="ai_assistant_codex_status_text">Use Fetch Models for OpenAI-compatible gateways. Env Key mode avoids depending on OpenAI auth bootstrap.</string>
+    <string name="ai_assistant_codex_auth_mode_env_key">Env Key (Recommended)</string>
+    <string name="ai_assistant_codex_auth_mode_openai_auth">auth.json / OpenAI Auth</string>
+    <string name="ai_assistant_fetch_models_base_url_required">Base URL is required to fetch models</string>
+    <string name="ai_assistant_fetch_models_api_key_required">API key is required to fetch models</string>
+    <string name="ai_assistant_fetching_models_from">Fetching models from %1$s</string>
+    <string name="ai_assistant_fetched_models_count">Fetched %1$d models</string>
+    <string name="ai_assistant_fetch_models_failed">Failed to fetch models</string>
+    <string name="ai_assistant_codex_provider_id_validation">Use letters, numbers, underscore, or hyphen only</string>
+    <string name="ai_assistant_base_url_required">Base URL is required</string>
+    <string name="ai_assistant_api_key_required">API key is required</string>
+    <string name="ai_assistant_model_required">Model is required</string>
+    <string name="ai_assistant_auth_mode_required">Auth mode is required</string>
+    <string name="ai_assistant_reasoning_effort_required">Reasoning effort is required</string>
+    <string name="ai_assistant_context_window_positive">Enter a positive context window</string>
+    <string name="ai_assistant_token_limit_positive">Enter a positive token limit</string>
+
+    <string name="ai_assistant_local_llm_dialog_title">Configure Local LLM</string>
+    <string name="ai_assistant_local_llm_model_name_hint">Model Name</string>
+    <string name="ai_assistant_local_llm_base_url_default" translatable="false">http://localhost:1234</string>
+    <string name="ai_assistant_local_llm_model_default" translatable="false">local-model</string>
+
+    <string name="ai_assistant_working">Working</string>
+    <string name="ai_assistant_hide_activity">Hide activity</string>
+    <string name="ai_assistant_tool_command_label">Command</string>
+    <string name="ai_assistant_tool_output_label">Output</string>
+    <string name="ai_assistant_session_switch">Switch</string>
+    <string name="ai_assistant_session_active_word">Active</string>
+
+    <string name="ai_assistant_codex_settings_saved">Codex CLI settings saved</string>
+    <string name="ai_assistant_custom_profile_active">Active custom profile: %1$s</string>
+    <string name="ai_assistant_add_custom_profile_first">Add a custom profile first</string>
+    <string name="ai_assistant_custom_profile_deleted_requires_reselect">Custom profile deleted. Add or select another profile to keep using Custom Provider.</string>
+    <string name="ai_assistant_deleted_profile">Deleted %1$s</string>
+    <string name="ai_assistant_codex_installer_opened_and_preset_applied">Codex CLI installer opened and Codex preset applied</string>
+    <string name="ai_assistant_auto_switch_enabled">Auto-switch enabled</string>
+    <string name="ai_assistant_auto_switch_disabled">Auto-switch disabled</string>
+    <string name="ai_assistant_tool_execution_enabled">AI tool execution enabled</string>
+    <string name="ai_assistant_tool_execution_disabled">AI tool execution disabled</string>
+    <string name="ai_assistant_code_completion_unavailable_codex">Code completion is unavailable for Codex CLI</string>
+    <string name="ai_assistant_code_completion_enabled">Code completion enabled</string>
+    <string name="ai_assistant_code_completion_disabled">Code completion disabled</string>
+    <string name="ai_assistant_switched_to_provider">Switched to %1$s</string>
+    <string name="ai_assistant_no_valid_api_key">No valid API key for %1$s</string>
+    <string name="ai_assistant_model_switched">Model switched to: %1$s</string>
+    <string name="ai_assistant_codex_config_summary_text">Codex config: %1$s</string>
+    <string name="ai_assistant_codex_config_not_set">Codex config: not set. Configure provider ID, base URL, key, and model for the Termux bridge.</string>
+    <string name="ai_assistant_reinstall_codex_cli">Reinstall Codex CLI</string>
+    <string name="ai_assistant_custom_provider_create_status">Create a reusable custom provider profile. NewAPI-style gateways can fetch models from /v1/models.</string>
+    <string name="ai_assistant_custom_provider_edit_status">Editing %1$s. You can fetch models or type a model ID manually.</string>
+    <string name="ai_assistant_profile_name_required">Profile name is required</string>
+    <string name="ai_assistant_model_id_required">Model ID is required</string>
+    <string name="ai_assistant_api_type_required">API type is required</string>
+    <string name="ai_assistant_file_write_permission_title">AI File Write Permission</string>
+    <string name="ai_assistant_file_write_permission_message">AI wants to write to:\n%1$s\n\nAllow this action?</string>
+    <string name="ai_assistant_allow">Allow</string>
+    <string name="ai_assistant_deny">Deny</string>
+    <string name="ai_assistant_always_allow">Always Allow</string>
+    <string name="ai_assistant_permissions_dialog_title">AI Permissions</string>
+    <string name="ai_assistant_provider_error_dialog_title">Provider Error</string>
+    <string name="ai_assistant_provider_error_dialog_message">Current Provider: %1$s\n\nError: %2$s\n\nAvailable providers: %3$d\n\nWould you like to switch to another provider?</string>
+    <string name="ai_assistant_switch_manually">Switch Manually</string>
+    <string name="ai_assistant_enable_auto_switch_action">Enable Auto-Switch</string>
+    <string name="ai_assistant_no_providers_dialog_title">No Providers Available</string>
+    <string name="ai_assistant_no_providers_dialog_message">Error: %1$s\n\nUnfortunately, there are no other providers available with valid API keys.\n\nPlease:\n1. Check your API keys\n2. Verify account quotas\n3. Try again later</string>
+    <string name="ai_assistant_ok">OK</string>
+    <string name="ai_assistant_auto_switched_provider_title">Auto-Switched Provider</string>
+    <string name="ai_assistant_auto_switched_provider_message">Switched from: %1$s\nSwitched to: %2$s\n\nReason: %3$s\n\nAuto-switch is enabled. You can disable it in settings.</string>
+    <string name="ai_assistant_disable_auto_switch_action">Disable Auto-Switch</string>
+    <string name="ai_assistant_apk_not_found">APK not found: %1$s</string>
+    <string name="ai_assistant_local_file_not_found">File not found: %1$s</string>
+    <string name="ai_assistant_enable_unknown_app_installs">Allow app installs, then tap the APK again.</string>
+    <string name="ai_assistant_unable_to_open_apk_installer">Unable to open APK installer.</string>
+    <string name="ai_assistant_code_block_label">code</string>
+    <string name="ai_assistant_code_copied_to_clipboard">Code copied to clipboard</string>
+    <string name="ai_assistant_simple_prompt_hint">Ask AI anything…</string>
+    <string name="ai_assistant_file_icon_content_description">File icon</string>
+
+</resources>

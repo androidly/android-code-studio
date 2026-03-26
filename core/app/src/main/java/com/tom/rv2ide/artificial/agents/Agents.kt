@@ -21,6 +21,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
+import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
 import com.tom.rv2ide.artificial.agents.external.ExternalEngineConfig
 
 /**
@@ -146,9 +147,23 @@ class Agents(ctx: Context) {
     "local-model"
   )
 
+  private fun externalEngineModelId(): String {
+    return CodexCliConfig.getModelId()
+      .ifBlank { ExternalEngineConfig.getModelLabel() }
+  }
+
+  private fun matchesExternalModel(modelName: String): Boolean {
+    val normalizedModel = modelName.trim()
+    if (normalizedModel.isBlank()) {
+      return false
+    }
+    return normalizedModel == externalEngineModelId() ||
+      normalizedModel == ExternalEngineConfig.getModelLabel()
+  }
+
   private val external_engine_models: Array<String>
-    get() = ExternalEngineConfig.getModelLabel()
-      .takeIf { ExternalEngineConfig.hasValidConfig() && it.isNotBlank() }
+    get() = externalEngineModelId()
+      .takeIf { it.isNotBlank() }
       ?.let { arrayOf(it) }
       ?: emptyArray()
 
@@ -178,14 +193,14 @@ class Agents(ctx: Context) {
       currentProvider == "custom" &&
         (modelName in custom_provider_models || modelName == CustomProviderConfig.getModelId()) -> "custom"
       currentProvider == "external" &&
-        (modelName in external_engine_models || modelName == ExternalEngineConfig.getModelLabel()) -> "external"
+        matchesExternalModel(modelName) -> "external"
       modelName in openai_models -> "openai"
       modelName in gemini_models -> "gemini"
       modelName in claude_models -> "claude"
       modelName in deepseek_models -> "deepseek"
       modelName in grok_models -> "grok"
       modelName in localllm_models -> "localllm"
-      modelName in external_engine_models || modelName == ExternalEngineConfig.getModelLabel() -> "external"
+      matchesExternalModel(modelName) -> "external"
       modelName in custom_provider_models || modelName == CustomProviderConfig.getModelId() -> "custom"
       else -> null
     }
@@ -202,7 +217,7 @@ class Agents(ctx: Context) {
           name in deepseek_models -> "deepseek"
           name in grok_models -> "grok"
           name in localllm_models -> "localllm"
-          name in external_engine_models -> "external"
+          matchesExternalModel(name) -> "external"
           name in custom_provider_models -> "custom"
           else -> currentProvider
       }
@@ -217,7 +232,7 @@ class Agents(ctx: Context) {
   
   fun getAgent(): String {
     return when (getProvider()) {
-      "external" -> ExternalEngineConfig.getModelLabel()
+      "external" -> externalEngineModelId()
         .ifBlank { external_engine_models.firstOrNull() ?: "" }
       "custom" -> CustomProviderConfig.getModelId()
         .ifBlank { custom_provider_models.firstOrNull() ?: "" }
@@ -233,7 +248,7 @@ class Agents(ctx: Context) {
       "deepseek" -> "deepseek-chat"
       "grok" -> "grok-beta"
       "localllm" -> "local-model"
-      "external" -> ExternalEngineConfig.getModelLabel().ifBlank { "Codex CLI" }
+      "external" -> externalEngineModelId().ifBlank { "gpt-5.4" }
       else -> "gemini-2.5-pro"
         }
       }

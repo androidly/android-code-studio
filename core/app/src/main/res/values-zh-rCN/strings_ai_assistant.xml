@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="ai_assistant_provider_gemini">Google Gemini</string>
+    <string name="ai_assistant_provider_openai">OpenAI</string>
+    <string name="ai_assistant_provider_claude">Anthropic Claude</string>
+    <string name="ai_assistant_provider_deepseek">DeepSeek</string>
+    <string name="ai_assistant_provider_grok">xAI Grok</string>
+    <string name="ai_assistant_provider_local_llm">本地 LLM</string>
+    <string name="ai_assistant_provider_codex_cli">Codex CLI</string>
+    <string name="ai_assistant_provider_custom">自定义提供商</string>
+
+    <string name="ai_assistant_auto_switch_title">自动切换提供商</string>
+    <string name="ai_assistant_auto_switch_summary">在触发限流、额度耗尽或密钥无效错误时切换到其他已配置的提供商</string>
+    <string name="ai_assistant_tool_execution_title">AI 工具执行</string>
+    <string name="ai_assistant_tool_execution_summary">允许构建、聚焦读写、安全终端命令和 Termux 软件包操作</string>
+    <string name="ai_assistant_provider_title">AI 提供商</string>
+    <string name="ai_assistant_select_provider_title">选择 AI 提供商</string>
+    <string name="ai_assistant_current_value">当前：%1$s</string>
+    <string name="ai_assistant_current_value_with_detail">当前：%1$s • %2$s</string>
+    <string name="ai_assistant_model_title">AI 模型</string>
+    <string name="ai_assistant_no_models_configured">%1$s 未配置模型</string>
+    <string name="ai_assistant_select_model_title">选择 AI 模型</string>
+    <string name="ai_assistant_no_model_selected">未选择模型</string>
+    <string name="ai_assistant_active_custom_profile_title">当前自定义配置</string>
+    <string name="ai_assistant_select_active_custom_profile_title">选择当前自定义配置</string>
+    <string name="ai_assistant_no_custom_profile_configured">未配置自定义配置</string>
+    <string name="ai_assistant_codex_bridge_title">Codex CLI 桥接</string>
+    <string name="ai_assistant_codex_preset_applied">已应用 Codex 桥接预设</string>
+    <string name="ai_assistant_codex_bridge_active">受管会话桥接已启用</string>
+    <string name="ai_assistant_codex_bridge_summary_with_status">%1$s • %2$s</string>
+    <string name="ai_assistant_codex_cli_config_title">Codex CLI 配置</string>
+    <string name="ai_assistant_codex_cli_config_summary">为 Termux Codex 桥接配置提供商 ID、基础 URL、Key 和模型</string>
+    <string name="ai_assistant_install_codex_cli_title">安装 Codex CLI</string>
+    <string name="ai_assistant_install_codex_cli_opened">已打开 Codex CLI 安装器并应用预设</string>
+    <string name="ai_assistant_add_custom_profile_title">添加自定义配置</string>
+    <string name="ai_assistant_add_custom_profile_summary_first">创建你的第一个自定义提供商配置</string>
+    <string name="ai_assistant_add_custom_profile_summary_more">再创建一个可复用的自定义提供商配置</string>
+    <string name="ai_assistant_edit_custom_profile_title">编辑当前自定义配置</string>
+    <string name="ai_assistant_edit_custom_profile_summary">编辑 %1$s</string>
+    <string name="ai_assistant_no_custom_profile_to_edit">没有可编辑的自定义配置</string>
+    <string name="ai_assistant_delete_custom_profile_title">删除当前自定义配置</string>
+    <string name="ai_assistant_delete_custom_profile_summary">删除 %1$s</string>
+    <string name="ai_assistant_no_custom_profile_to_delete">没有可删除的自定义配置</string>
+    <string name="ai_assistant_delete_custom_profile_dialog_title">删除自定义配置</string>
+    <string name="ai_assistant_delete_custom_profile_dialog_message">删除“%1$s”？</string>
+    <string name="ai_assistant_delete_custom_profile_failed">删除自定义配置失败</string>
+    <string name="ai_assistant_open_custom_provider_editor_failed">无法从当前界面打开自定义提供商编辑器</string>
+    <string name="ai_assistant_open_codex_editor_failed">无法从当前界面打开 Codex CLI 编辑器</string>
+
+    <string name="ai_assistant_api_key_click_to_set">点击设置 API Key</string>
+    <string name="ai_assistant_api_key_masked_summary">API Key：%1$s…</string>
+    <string name="ai_assistant_api_key_hint_grok">输入你的 xAI Grok API Key</string>
+    <string name="ai_assistant_api_key_hint_gemini">输入你的 Google Gemini API Key</string>
+    <string name="ai_assistant_api_key_hint_deepseek">输入你的 DeepSeek API Key</string>
+    <string name="ai_assistant_api_key_hint_openai">输入你的 OpenAI API Key</string>
+    <string name="ai_assistant_api_key_hint_anthropic">输入你的 Anthropic API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_grok">Grok API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_gemini">Gemini API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_deepseek">DeepSeek API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_openai">OpenAI API Key</string>
+    <string name="ai_assistant_api_key_dialog_title_anthropic">Anthropic API Key</string>
+    <string name="ai_assistant_api_key_dialog_message_grok">输入你的 xAI Grok API Key</string>
+    <string name="ai_assistant_api_key_dialog_message_gemini">输入你的 Google Gemini API Key</string>
+    <string name="ai_assistant_api_key_dialog_message_deepseek">输入你的 DeepSeek API Key</string>
+    <string name="ai_assistant_api_key_dialog_message_openai">输入你的 OpenAI API Key</string>
+    <string name="ai_assistant_api_key_dialog_message_anthropic">输入你的 Anthropic API Key</string>
+
+    <string name="ai_assistant_preferences_custom_profiles_title">自定义配置</string>
+    <string name="ai_assistant_preferences_custom_profiles_summary">在这里切换和管理可复用的网关配置。</string>
+    <string name="ai_assistant_preferences_active_custom_profile_hint">当前自定义配置</string>
+    <string name="ai_assistant_preferences_codex_bridge_description">将助手桥接到 Termux Codex 会话。受管桥接遵循 Codex 流程，不再暴露命令模板。</string>
+    <string name="ai_assistant_preferences_configure_codex">配置 Codex</string>
+    <string name="ai_assistant_preferences_apply_preset">应用预设</string>
+    <string name="ai_assistant_preferences_auto_switch_toggle_summary">出错时自动切换提供商</string>
+    <string name="ai_assistant_preferences_tool_execution_toggle_summary">允许 AI 执行构建和安全的 Termux 命令</string>
+    <string name="ai_assistant_preferences_code_completion_title">代码补全</string>
+    <string name="ai_assistant_preferences_code_completion_summary">启用 AI 驱动的代码建议</string>
+    <string name="ai_assistant_preferences_provider_label">提供商：</string>
+    <string name="ai_assistant_preferences_model_label">模型：</string>
+    <string name="ai_assistant_preferences_not_set">未设置</string>
+    <string name="ai_assistant_custom_profile_active_name">%1$s（%2$s）</string>
+
+    <string name="ai_assistant_console_engine_default">Codex</string>
+    <string name="ai_assistant_console_configure">配置</string>
+    <string name="ai_assistant_console_input_hint">输入消息或 /命令</string>
+    <string name="ai_assistant_console_send_request">发送请求</string>
+    <string name="ai_assistant_console_shortcuts" translatable="false">/new  /list  /switch  /help</string>
+    <string name="ai_assistant_console_review">审查</string>
+    <string name="ai_assistant_console_clear">清空</string>
+    <string name="ai_assistant_console_stop">停止</string>
+    <string name="ai_assistant_console_latest">最新</string>
+    <string name="ai_assistant_command_sheet_title">助手命令</string>
+    <string name="ai_assistant_command_sheet_summary">会话、历史和运行控制都在这里。对支持的操作使用 Run，或使用 Insert 将命令插入输入框。</string>
+    <string name="ai_assistant_file_permissions_title">AI 文件写入权限</string>
+    <string name="ai_assistant_file_permissions_enable">允许 AI 写入文件</string>
+    <string name="ai_assistant_file_permissions_confirm">写入前需要确认</string>
+    <string name="ai_assistant_file_permissions_backup">写入前自动备份文件</string>
+    <string name="ai_assistant_file_permissions_warning">警告：启用文件写入后，AI 可以修改你的项目文件。应用前请始终检查改动。</string>
+
+    <string name="ai_assistant_custom_provider_dialog_title">配置自定义提供商</string>
+    <string name="ai_assistant_custom_provider_dialog_summary">支持兼容 OpenAI Chat、OpenAI Responses 和 Claude Messages 的网关。</string>
+    <string name="ai_assistant_custom_provider_profile_name_hint">配置名称</string>
+    <string name="ai_assistant_custom_provider_profile_name_example" translatable="false">NewAPI Primary</string>
+    <string name="ai_assistant_base_url_hint">基础 URL</string>
+    <string name="ai_assistant_base_url_example" translatable="false">https://your-newapi-domain.com</string>
+    <string name="ai_assistant_api_key_hint">API Key</string>
+    <string name="ai_assistant_custom_provider_api_type_hint">API 类型</string>
+    <string name="ai_assistant_custom_provider_api_type_openai_chat">OpenAI Chat</string>
+    <string name="ai_assistant_custom_provider_api_type_openai_responses">OpenAI Responses</string>
+    <string name="ai_assistant_custom_provider_api_type_claude_messages">Claude Messages</string>
+    <string name="ai_assistant_custom_provider_model_id_hint">模型 ID</string>
+    <string name="ai_assistant_custom_provider_status_text">对于 NewAPI / OpenAI 兼容域名可使用 Fetch Models。你也可以手动输入模型 ID。</string>
+    <string name="ai_assistant_fetch_models">获取模型</string>
+
+    <string name="ai_assistant_codex_dialog_title">配置 Codex CLI</string>
+    <string name="ai_assistant_codex_dialog_summary">为 Termux 桥接写入受管的 Codex provider 项。桥接仅导出兼容 Responses 的设置。</string>
+    <string name="ai_assistant_codex_provider_id_hint">提供商 ID</string>
+    <string name="ai_assistant_codex_provider_id_example" translatable="false">OpenAI</string>
+    <string name="ai_assistant_codex_provider_name_hint">提供商名称</string>
+    <string name="ai_assistant_codex_provider_name_example" translatable="false">OpenAI</string>
+    <string name="ai_assistant_codex_auth_mode_hint">认证模式</string>
+    <string name="ai_assistant_codex_model_hint">模型</string>
+    <string name="ai_assistant_codex_review_model_hint">审查模型</string>
+    <string name="ai_assistant_codex_reasoning_hint">推理强度</string>
+    <string name="ai_assistant_codex_context_window_hint">上下文窗口</string>
+    <string name="ai_assistant_codex_auto_compact_hint">自动压缩 Token 阈值</string>
+    <string name="ai_assistant_codex_status_text">对于 OpenAI 兼容网关可使用 Fetch Models。Env Key 模式可避免依赖 OpenAI 登录引导。</string>
+    <string name="ai_assistant_codex_auth_mode_env_key">环境变量 Key（推荐）</string>
+    <string name="ai_assistant_codex_auth_mode_openai_auth">auth.json / OpenAI 登录</string>
+    <string name="ai_assistant_fetch_models_base_url_required">获取模型前必须填写基础 URL</string>
+    <string name="ai_assistant_fetch_models_api_key_required">获取模型前必须填写 API Key</string>
+    <string name="ai_assistant_fetching_models_from">正在从 %1$s 获取模型</string>
+    <string name="ai_assistant_fetched_models_count">已获取 %1$d 个模型</string>
+    <string name="ai_assistant_fetch_models_failed">获取模型失败</string>
+    <string name="ai_assistant_codex_provider_id_validation">只能使用字母、数字、下划线或连字符</string>
+    <string name="ai_assistant_base_url_required">必须填写基础 URL</string>
+    <string name="ai_assistant_api_key_required">必须填写 API Key</string>
+    <string name="ai_assistant_model_required">必须填写模型</string>
+    <string name="ai_assistant_auth_mode_required">必须选择认证模式</string>
+    <string name="ai_assistant_reasoning_effort_required">必须选择推理强度</string>
+    <string name="ai_assistant_context_window_positive">请输入正数的上下文窗口</string>
+    <string name="ai_assistant_token_limit_positive">请输入正数的 Token 阈值</string>
+
+    <string name="ai_assistant_local_llm_dialog_title">配置本地 LLM</string>
+    <string name="ai_assistant_local_llm_model_name_hint">模型名称</string>
+    <string name="ai_assistant_local_llm_base_url_default" translatable="false">http://localhost:1234</string>
+    <string name="ai_assistant_local_llm_model_default" translatable="false">local-model</string>
+
+    <string name="ai_assistant_working">处理中</string>
+    <string name="ai_assistant_hide_activity">隐藏活动</string>
+    <string name="ai_assistant_tool_command_label">命令</string>
+    <string name="ai_assistant_tool_output_label">输出</string>
+    <string name="ai_assistant_session_switch">切换</string>
+    <string name="ai_assistant_session_active_word">当前</string>
+
+    <string name="ai_assistant_codex_settings_saved">Codex CLI 设置已保存</string>
+    <string name="ai_assistant_custom_profile_active">当前自定义配置：%1$s</string>
+    <string name="ai_assistant_add_custom_profile_first">请先添加自定义配置</string>
+    <string name="ai_assistant_custom_profile_deleted_requires_reselect">自定义配置已删除。请添加或重新选择其他配置以继续使用自定义提供商。</string>
+    <string name="ai_assistant_deleted_profile">已删除 %1$s</string>
+    <string name="ai_assistant_codex_installer_opened_and_preset_applied">已打开 Codex CLI 安装器并应用 Codex 预设</string>
+    <string name="ai_assistant_auto_switch_enabled">已启用自动切换</string>
+    <string name="ai_assistant_auto_switch_disabled">已关闭自动切换</string>
+    <string name="ai_assistant_tool_execution_enabled">已启用 AI 工具执行</string>
+    <string name="ai_assistant_tool_execution_disabled">已关闭 AI 工具执行</string>
+    <string name="ai_assistant_code_completion_unavailable_codex">Codex CLI 不支持代码补全</string>
+    <string name="ai_assistant_code_completion_enabled">已启用代码补全</string>
+    <string name="ai_assistant_code_completion_disabled">已关闭代码补全</string>
+    <string name="ai_assistant_switched_to_provider">已切换到 %1$s</string>
+    <string name="ai_assistant_no_valid_api_key">%1$s 没有可用的 API Key</string>
+    <string name="ai_assistant_model_switched">已切换模型：%1$s</string>
+    <string name="ai_assistant_codex_config_summary_text">Codex 配置：%1$s</string>
+    <string name="ai_assistant_codex_config_not_set">Codex 配置：未设置。请为 Termux 桥接配置提供商 ID、基础 URL、Key 和模型。</string>
+    <string name="ai_assistant_reinstall_codex_cli">重新安装 Codex CLI</string>
+    <string name="ai_assistant_custom_provider_create_status">创建一个可复用的自定义提供商配置。NewAPI 风格网关可从 /v1/models 获取模型。</string>
+    <string name="ai_assistant_custom_provider_edit_status">正在编辑 %1$s。你可以获取模型，也可以手动输入模型 ID。</string>
+    <string name="ai_assistant_profile_name_required">必须填写配置名称</string>
+    <string name="ai_assistant_model_id_required">必须填写模型 ID</string>
+    <string name="ai_assistant_api_type_required">必须选择 API 类型</string>
+    <string name="ai_assistant_file_write_permission_title">AI 文件写入权限</string>
+    <string name="ai_assistant_file_write_permission_message">AI 想写入以下文件：\n%1$s\n\n允许这次操作吗？</string>
+    <string name="ai_assistant_allow">允许</string>
+    <string name="ai_assistant_deny">拒绝</string>
+    <string name="ai_assistant_always_allow">始终允许</string>
+    <string name="ai_assistant_permissions_dialog_title">AI 权限</string>
+    <string name="ai_assistant_provider_error_dialog_title">提供商错误</string>
+    <string name="ai_assistant_provider_error_dialog_message">当前提供商：%1$s\n\n错误：%2$s\n\n可用提供商：%3$d\n\n是否切换到其他提供商？</string>
+    <string name="ai_assistant_switch_manually">手动切换</string>
+    <string name="ai_assistant_enable_auto_switch_action">启用自动切换</string>
+    <string name="ai_assistant_no_providers_dialog_title">没有可用提供商</string>
+    <string name="ai_assistant_no_providers_dialog_message">错误：%1$s\n\n很遗憾，目前没有其他带有效 API Key 的可用提供商。\n\n请尝试：\n1. 检查 API Key\n2. 检查账户额度\n3. 稍后再试</string>
+    <string name="ai_assistant_ok">确定</string>
+    <string name="ai_assistant_auto_switched_provider_title">已自动切换提供商</string>
+    <string name="ai_assistant_auto_switched_provider_message">已从：%1$s\n切换到：%2$s\n\n原因：%3$s\n\n自动切换已启用，你可以在设置中关闭它。</string>
+    <string name="ai_assistant_disable_auto_switch_action">关闭自动切换</string>
+    <string name="ai_assistant_apk_not_found">未找到 APK：%1$s</string>
+    <string name="ai_assistant_local_file_not_found">未找到文件：%1$s</string>
+    <string name="ai_assistant_enable_unknown_app_installs">请先允许安装应用，然后再点一次 APK。</string>
+    <string name="ai_assistant_unable_to_open_apk_installer">无法打开 APK 安装界面。</string>
+    <string name="ai_assistant_code_block_label">代码</string>
+    <string name="ai_assistant_code_copied_to_clipboard">代码已复制到剪贴板</string>
+    <string name="ai_assistant_simple_prompt_hint">向 AI 提问任何内容…</string>
+    <string name="ai_assistant_file_icon_content_description">文件图标</string>
+
+</resources>

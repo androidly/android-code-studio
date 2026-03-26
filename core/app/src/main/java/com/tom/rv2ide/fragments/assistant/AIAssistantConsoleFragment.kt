@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
@@ -26,8 +27,12 @@ import com.tom.rv2ide.activities.ModificationData
 import com.tom.rv2ide.activities.ReviewChangesActivity
 import com.tom.rv2ide.activities.editor.EditorHandlerActivity
 import com.tom.rv2ide.artificial.agents.Agents
+import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
+import com.tom.rv2ide.artificial.agents.custom.CustomProviderProfile
+import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
 import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
 import com.tom.rv2ide.artificial.dialogs.CodexCliConfigDialog
+import com.tom.rv2ide.artificial.dialogs.CustomProviderConfigDialog
 import com.tom.rv2ide.utils.ProjectHelper.getProjectRoot
 import java.io.File
 import kotlinx.coroutines.launch
@@ -195,46 +200,19 @@ class AIAssistantConsoleFragment : Fragment() {
         }
 
         engineButton.setOnClickListener {
-            val codexStatus = CodexTermuxBridge.status()
-            val agents = Agents(requireContext())
-            when {
-                !codexStatus.ready -> {
-                    CodexTermuxBridge.installAndConfigure(
-                        context = requireContext(),
-                        selectProvider = true
-                    )
-                    consoleViewModel.refreshAgentPresentation()
-                    showSnackbar(
-                        if (codexStatus.launcherNeedsRepair) {
-                            "Opened Codex CLI repair script and kept the assistant on the Codex preset"
-                        } else {
-                            "Opened Codex CLI installer and switched the assistant to the Codex preset"
-                        }
-                    )
-                }
-                agents.getProvider() != "external" -> {
-                    CodexTermuxBridge.applyPreset(
-                        selectProvider = true,
-                        context = requireContext()
-                    )
-                    consoleViewModel.refreshAgentPresentation()
-                    showSnackbar("Assistant switched to Codex CLI")
-                }
-                else -> {
-                    CodexCliConfigDialog {
-                        CodexTermuxBridge.ensureManagedPreset(
-                            context = requireContext(),
-                            selectProvider = true
-                        )
-                        consoleViewModel.refreshAgentPresentation()
-                        showSnackbar("Codex CLI settings saved")
-                    }.show(parentFragmentManager, "CodexCliConfigDialog")
-                }
+            when (Agents(requireContext()).getProvider()) {
+                "external" -> openCodexConfig(selectAfterSave = false)
+                "custom" -> openCustomProviderConfig(selectAfterSave = false)
+                else -> showProviderSwitcher()
             }
         }
 
         slashButton.setOnClickListener {
             showSlashCommandSheet()
+        }
+
+        providerText.setOnClickListener {
+            showProviderSwitcher()
         }
 
         stopButton.setOnClickListener {
@@ -272,8 +250,13 @@ class AIAssistantConsoleFragment : Fragment() {
 
     private fun renderState(state: AIAssistantConsoleUiState) {
         latestUiState = state
-        providerText.text = state.providerLabel
-        modelText.text = state.modelLabel
+        val providerId = Agents(requireContext()).getProvider()
+        providerText.text = when {
+            providerId == "custom" -> providerDisplayName(providerId)
+            state.providerLabel.isNotBlank() -> state.providerLabel
+            else -> providerDisplayName(providerId)
+        }
+        modelText.text = state.modelLabel.ifBlank { getString(R.string.ai_assistant_preferences_not_set) }
         sessionText.isVisible = state.sessionLabel.isNotBlank()
         sessionText.text = if (state.sessionLabel.isBlank()) {
             ""
@@ -285,14 +268,7 @@ class AIAssistantConsoleFragment : Fragment() {
                 }
             }
         }
-        val codexStatus = CodexTermuxBridge.status()
-        val providerId = Agents(requireContext()).getProvider()
-        engineButton.text = when {
-            codexStatus.launcherNeedsRepair -> "Fix Codex"
-            !codexStatus.installed || !codexStatus.configuredForCodex -> "Install"
-            providerId != "external" -> "Use Codex"
-            else -> "Codex"
-        }
+        engineButton.text = getString(R.string.ai_assistant_console_configure)
         sendButton.isEnabled = true
         stopButton.isEnabled = state.isRunning
         stopButton.text = if (state.isRunning && state.queuedPromptCount > 0) {
@@ -349,6 +325,131 @@ class AIAssistantConsoleFragment : Fragment() {
             }
         } else {
             updateJumpToBottomButton()
+        }
+    }
+
+    private fun showProviderSwitcher() {
+        val providerIds = listOf("external", "custom")
+        val providerNames = providerIds.map(::providerDisplayName).toTypedArray()
+        val selectedProviderId = Agents(requireContext()).getProvider()
+        val selectedIndex = providerIds.indexOf(selectedProviderId).coerceAtLeast(0)
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.ai_assistant_select_provider_title)
+            .setSingleChoiceItems(providerNames, selectedIndex) { dialog, which ->
+                dialog.dismiss()
+                when (providerIds[which]) {
+                    "external" -> switchToCodexProvider()
+                    "custom" -> switchToCustomProvider()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun switchToCodexProvider() {
+        if (!CodexCliConfig.hasValidConfig()) {
+            openCodexConfig(selectAfterSave = true)
+            return
+        }
+
+        CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+        val applied = consoleViewModel.applyAgentSelection(
+            providerId = "external",
+            preferredModel = CodexCliConfig.getModelId()
+        )
+        if (applied) {
+            showSnackbar(getString(R.string.ai_assistant_switched_to_provider, providerDisplayName("external")))
+        } else {
+            showSnackbar(
+                getString(
+                    R.string.ai_assistant_no_valid_api_key,
+                    providerDisplayName("external")
+                )
+            )
+        }
+    }
+
+    private fun switchToCustomProvider() {
+        val activeProfile = CustomProviderConfig.getActiveProfile()
+        when {
+            activeProfile == null -> openCustomProviderConfig(createNew = true, selectAfterSave = true)
+            !activeProfile.isValid -> openCustomProviderConfig(profileId = activeProfile.id, selectAfterSave = true)
+            else -> applyCustomProviderSelection(activeProfile)
+        }
+    }
+
+    private fun openCodexConfig(selectAfterSave: Boolean) {
+        CodexCliConfigDialog {
+            CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+            val applied = consoleViewModel.applyAgentSelection(
+                providerId = "external",
+                preferredModel = CodexCliConfig.getModelId()
+            )
+            if (applied && selectAfterSave) {
+                showSnackbar(
+                    getString(
+                        R.string.ai_assistant_switched_to_provider,
+                        providerDisplayName("external")
+                    )
+                )
+            } else {
+                showSnackbar(getString(R.string.ai_assistant_codex_settings_saved))
+            }
+        }.show(parentFragmentManager, "CodexCliConfigDialog")
+    }
+
+    private fun openCustomProviderConfig(
+        profileId: String? = CustomProviderConfig.getActiveProfileId().takeIf { it.isNotBlank() },
+        createNew: Boolean = false,
+        selectAfterSave: Boolean
+    ) {
+        CustomProviderConfigDialog(
+            profileId = profileId,
+            createNew = createNew
+        ) { savedProfile ->
+            applyCustomProviderSelection(savedProfile, selectAfterSave)
+        }.show(parentFragmentManager, "CustomProviderConfigDialog")
+    }
+
+    private fun applyCustomProviderSelection(
+        profile: CustomProviderProfile,
+        selectAfterSave: Boolean = true
+    ) {
+        val applied = consoleViewModel.applyAgentSelection(
+            providerId = "custom",
+            preferredModel = profile.modelId
+        )
+        if (applied && selectAfterSave) {
+            showSnackbar(
+                getString(
+                    R.string.ai_assistant_custom_profile_active,
+                    profile.name
+                )
+            )
+        } else if (applied) {
+            showSnackbar(getString(R.string.ai_assistant_custom_profile_active, profile.name))
+        } else {
+            showSnackbar(
+                getString(
+                    R.string.ai_assistant_no_valid_api_key,
+                    providerDisplayName("custom")
+                )
+            )
+        }
+    }
+
+    private fun providerDisplayName(providerId: String): String {
+        return when (providerId) {
+            "external" -> getString(R.string.ai_assistant_provider_codex_cli)
+            "custom" -> getString(R.string.ai_assistant_provider_custom)
+            "gemini" -> getString(R.string.ai_assistant_provider_gemini)
+            "openai" -> getString(R.string.ai_assistant_provider_openai)
+            "claude" -> getString(R.string.ai_assistant_provider_claude)
+            "deepseek" -> getString(R.string.ai_assistant_provider_deepseek)
+            "grok" -> getString(R.string.ai_assistant_provider_grok)
+            "localllm" -> getString(R.string.ai_assistant_provider_local_llm)
+            else -> providerId.uppercase()
         }
     }
 
@@ -687,18 +788,14 @@ class AIAssistantConsoleFragment : Fragment() {
 
     private fun refreshCurrentEditorIfNeeded(filePath: String) {
         val activity = activity as? EditorHandlerActivity ?: return
-        val currentEditor = activity.getCurrentEditor() ?: return
-        val currentFile = currentEditor.file ?: return
-        if (currentFile.absolutePath != filePath) {
+        val targetFile = File(filePath).absoluteFile
+        val openedEditor = activity.getEditorForFile(targetFile) ?: return
+        val openedFile = openedEditor.file ?: return
+        if (openedFile.absolutePath != targetFile.absolutePath) {
             return
         }
 
-        try {
-            val newContent = File(filePath).readText()
-            val editorText = currentEditor.editor?.text ?: return
-            editorText.replace(0, editorText.length, newContent)
-        } catch (_: Exception) {
-        }
+        openedEditor.reloadFromDiskIfUnmodified()
     }
 
     private fun showSnackbar(message: String) {

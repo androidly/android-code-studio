@@ -142,8 +142,8 @@ class AIPreferencesFragment(
                 updateProviderDropdownSelection()
                 showLocalLLMConfigDialog(selectedProviderName)
             } else if (selectedProviderId == "external") {
-                val settings = CodexTermuxBridge.ensureManagedPreset(context = requireContext())
-                handleProviderChange("external", selectedProviderName, settings.resolvedDisplayLabel())
+                CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+                handleProviderChange("external", selectedProviderName, externalModelLabel())
             } else if (selectedProviderId == "custom") {
                 val activeProfile = CustomProviderConfig.getActiveProfile()
                 when {
@@ -192,7 +192,7 @@ class AIPreferencesFragment(
             updateExternalSection()
             updateModelDropdown()
             updateCurrentStatus()
-            showSnackbar("Codex CLI settings saved")
+            showSnackbar(getString(R.string.ai_assistant_codex_settings_saved))
         }
         dialog.show(parentFragmentManager, "CodexCliConfigDialog")
     }
@@ -218,7 +218,7 @@ class AIPreferencesFragment(
             "external" -> {
                 listOfNotNull(
                     providerDisplayName(currentProvider),
-                    ExternalEngineConfig.getModelLabel().takeIf { ExternalEngineConfig.hasValidConfig() && it.isNotBlank() }
+                    externalModelLabel().takeIf { it.isNotBlank() }
                 ).joinToString(" · ")
             }
             else -> providerDisplayName(currentProvider)
@@ -274,7 +274,12 @@ class AIPreferencesFragment(
             if (agents.getProvider() == "custom") {
                 handleProviderChange("custom", providerDisplayName("custom"), CustomProviderConfig.getModelId())
             } else {
-                showSnackbar("Active custom profile: ${customProfileDropdown.text}")
+                showSnackbar(
+                    getString(
+                        R.string.ai_assistant_custom_profile_active,
+                        customProfileDropdown.text.toString()
+                    )
+                )
             }
         }
 
@@ -285,7 +290,7 @@ class AIPreferencesFragment(
         editCustomProfileButton.setOnClickListener {
             val activeProfileId = CustomProviderConfig.getActiveProfileId()
             if (activeProfileId.isBlank()) {
-                showSnackbar("Add a custom profile first")
+                showSnackbar(getString(R.string.ai_assistant_add_custom_profile_first))
                 return@setOnClickListener
             }
             showCustomProviderConfigDialog(profileId = activeProfileId)
@@ -294,18 +299,18 @@ class AIPreferencesFragment(
         deleteCustomProfileButton.setOnClickListener {
             val activeProfile = CustomProviderConfig.getActiveProfile()
             if (activeProfile == null) {
-                showSnackbar("No custom profile to delete")
+                showSnackbar(getString(R.string.ai_assistant_no_custom_profile_to_delete))
                 return@setOnClickListener
             }
 
             MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Delete Custom Profile")
-                .setMessage("Delete '${activeProfile.name}'?")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete") { _, _ ->
+                .setTitle(R.string.ai_assistant_delete_custom_profile_dialog_title)
+                .setMessage(getString(R.string.ai_assistant_delete_custom_profile_dialog_message, activeProfile.name))
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.delete) { _, _ ->
                     val deleted = CustomProviderConfig.deleteProfile(activeProfile.id)
                     if (!deleted) {
-                        showSnackbar("Failed to delete custom profile")
+                        showSnackbar(getString(R.string.ai_assistant_delete_custom_profile_failed))
                         return@setPositiveButton
                     }
 
@@ -321,10 +326,10 @@ class AIPreferencesFragment(
                         }
                         agents.getProvider() == "custom" -> {
                             updateProviderDropdownSelection()
-                            showSnackbar("Custom profile deleted. Add or select another profile to keep using Custom Provider.")
+                            showSnackbar(getString(R.string.ai_assistant_custom_profile_deleted_requires_reselect))
                         }
                         else -> {
-                            showSnackbar("Deleted ${activeProfile.name}")
+                            showSnackbar(getString(R.string.ai_assistant_deleted_profile, activeProfile.name))
                         }
                     }
                 }
@@ -334,7 +339,7 @@ class AIPreferencesFragment(
 
     private fun setupExternalEngineSection() {
         installCodexButton.setOnClickListener {
-            val settings = CodexTermuxBridge.installAndConfigure(
+            CodexTermuxBridge.installAndConfigure(
                 context = requireContext(),
                 selectProvider = true
             )
@@ -342,20 +347,20 @@ class AIPreferencesFragment(
             updateProviderDropdownSelection()
             updateModelDropdown()
             updateCurrentStatus()
-            showSnackbar("Codex CLI installer opened and Codex preset applied")
+            showSnackbar(getString(R.string.ai_assistant_codex_installer_opened_and_preset_applied))
             if (agents.getProvider() == "external") {
-                handleProviderChange("external", providerDisplayName("external"), settings.resolvedDisplayLabel())
+                handleProviderChange("external", providerDisplayName("external"), externalModelLabel())
             }
         }
         configureExternalEngineButton.setOnClickListener {
-            val settings = CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+            CodexTermuxBridge.ensureManagedPreset(context = requireContext())
             updateExternalSection()
             updateModelDropdown()
             if (agents.getProvider() == "external") {
-                handleProviderChange("external", providerDisplayName("external"), settings.resolvedDisplayLabel())
+                handleProviderChange("external", providerDisplayName("external"), externalModelLabel())
             } else {
                 updateCurrentStatus()
-                showSnackbar("Codex bridge preset applied")
+                showSnackbar(getString(R.string.ai_assistant_codex_preset_applied))
             }
         }
         configureCodexButton.setOnClickListener {
@@ -368,7 +373,11 @@ class AIPreferencesFragment(
         customProfileIds = profiles.map { it.id }
         val profileNames = profiles.map { profile ->
             if (profile.id == CustomProviderConfig.getActiveProfileId()) {
-                "${profile.name} (Active)"
+                getString(
+                    R.string.ai_assistant_custom_profile_active_name,
+                    profile.name,
+                    getString(R.string.ai_assistant_session_active_word)
+                )
             } else {
                 profile.name
             }
@@ -395,30 +404,43 @@ class AIPreferencesFragment(
         val codexStatus = CodexTermuxBridge.status()
         val codexConfig = CodexCliConfig.getSettings()
         externalEngineSummaryText.text = if (ExternalEngineConfig.hasValidConfig()) {
-            "${codexStatus.summaryText()} · managed session bridge active"
+            getString(
+                R.string.ai_assistant_codex_bridge_summary_with_status,
+                codexStatus.summaryText(),
+                getString(R.string.ai_assistant_codex_bridge_active)
+            )
         } else {
             codexStatus.summaryText()
         }
         codexConfigSummaryText.text = if (codexConfig.isValid) {
-            "Codex config: ${codexConfig.summaryText()}"
+            getString(R.string.ai_assistant_codex_config_summary_text, codexConfig.summaryText())
         } else {
-            "Codex config: not set. Configure provider ID, base URL, key, and model for the Termux bridge."
+            getString(R.string.ai_assistant_codex_config_not_set)
         }
-        installCodexButton.text = if (codexStatus.installed) "Reinstall Codex CLI" else "Install Codex CLI"
+        installCodexButton.text =
+            if (codexStatus.installed) {
+                getString(R.string.ai_assistant_reinstall_codex_cli)
+            } else {
+                getString(R.string.ai_assistant_install_codex_cli_title)
+            }
     }
 
     private fun providerDisplayName(providerId: String): String {
         return when (providerId) {
-            "gemini" -> "Google Gemini"
-            "openai" -> "OpenAI"
-            "claude" -> "Anthropic Claude"
-            "deepseek" -> "DeepSeek"
-            "grok" -> "xAI Grok"
-            "localllm" -> "Local LLM"
-            "external" -> "Codex CLI"
-            "custom" -> "Custom Provider"
+            "gemini" -> getString(R.string.ai_assistant_provider_gemini)
+            "openai" -> getString(R.string.ai_assistant_provider_openai)
+            "claude" -> getString(R.string.ai_assistant_provider_claude)
+            "deepseek" -> getString(R.string.ai_assistant_provider_deepseek)
+            "grok" -> getString(R.string.ai_assistant_provider_grok)
+            "localllm" -> getString(R.string.ai_assistant_provider_local_llm)
+            "external" -> getString(R.string.ai_assistant_provider_codex_cli)
+            "custom" -> getString(R.string.ai_assistant_provider_custom)
             else -> providerId.uppercase()
         }
+    }
+
+    private fun externalModelLabel(): String {
+        return CodexCliConfig.getModelId().ifBlank { ExternalEngineConfig.getModelLabel() }
     }
 
     private fun setupToggles() {
@@ -426,9 +448,9 @@ class AIPreferencesFragment(
         autoSwitchToggle.setOnCheckedChangeListener { _, isChecked ->
             providerSwitchDialog.setAutoSwitch(isChecked)
             val message = if (isChecked) {
-                "Auto-switch enabled"
+                getString(R.string.ai_assistant_auto_switch_enabled)
             } else {
-                "Auto-switch disabled"
+                getString(R.string.ai_assistant_auto_switch_disabled)
             }
             showSnackbar(message)
         }
@@ -437,9 +459,9 @@ class AIPreferencesFragment(
         toolExecutionToggle.setOnCheckedChangeListener { _, isChecked ->
             permissionManager.setToolExecutionEnabled(isChecked)
             val message = if (isChecked) {
-                "AI tool execution enabled"
+                getString(R.string.ai_assistant_tool_execution_enabled)
             } else {
-                "AI tool execution disabled"
+                getString(R.string.ai_assistant_tool_execution_disabled)
             }
             showSnackbar(message)
         }
@@ -454,7 +476,7 @@ class AIPreferencesFragment(
         codeCompletionToggle.setOnCheckedChangeListener { _, isChecked ->
             if (agents.getProvider() == "external" && isChecked) {
                 codeCompletionToggle.isChecked = false
-                showSnackbar("Code completion is unavailable for Codex CLI")
+                showSnackbar(getString(R.string.ai_assistant_code_completion_unavailable_codex))
                 return@setOnCheckedChangeListener
             }
             android.util.Log.d("AIPreferences", "Toggle changed to: $isChecked")
@@ -471,9 +493,9 @@ class AIPreferencesFragment(
             }
             
             val message = if (isChecked) {
-                "✅ Code completion enabled"
+                getString(R.string.ai_assistant_code_completion_enabled)
             } else {
-                "❌ Code completion disabled"
+                getString(R.string.ai_assistant_code_completion_disabled)
             }
             showSnackbar(message)
         }
@@ -584,7 +606,7 @@ class AIPreferencesFragment(
                 }
             }
             
-            showSnackbar("Switched to $providerName")
+            showSnackbar(getString(R.string.ai_assistant_switched_to_provider, providerName))
         } else {
             agents.setProvider(previousProvider)
             if (previousModel.isNotBlank()) {
@@ -596,7 +618,7 @@ class AIPreferencesFragment(
             updateCustomSectionVisibility()
             updateExternalSection()
             updateCurrentStatus()
-            showSnackbar("⚠️ No valid API key for $providerName")
+            showSnackbar(getString(R.string.ai_assistant_no_valid_api_key, providerName))
         }
     }
 
@@ -615,7 +637,7 @@ class AIPreferencesFragment(
             }
         }
         
-        showSnackbar("Model switched to: $modelName")
+        showSnackbar(getString(R.string.ai_assistant_model_switched, modelName))
     }
 
     private fun showSnackbar(message: String) {

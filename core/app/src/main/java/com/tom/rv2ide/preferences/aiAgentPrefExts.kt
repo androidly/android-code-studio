@@ -20,11 +20,13 @@ package com.tom.rv2ide.preferences
 import android.content.Context
 import android.content.ContextWrapper
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.tom.rv2ide.R
 import com.tom.rv2ide.artificial.agents.Agents
+import com.tom.rv2ide.artificial.agents.custom.CustomProviderApiType
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderConfig
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderProfile
 import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
@@ -59,18 +61,18 @@ private interface ManagedAiPreference {
   fun setEnabled(enabled: Boolean)
 }
 
-private data class ProviderOption(val id: String, val label: String)
+private data class ProviderOption(val id: String, @StringRes val labelRes: Int)
 
 private val providerOptions =
     listOf(
-        ProviderOption("gemini", "Google Gemini"),
-        ProviderOption("openai", "OpenAI"),
-        ProviderOption("claude", "Anthropic Claude"),
-        ProviderOption("deepseek", "DeepSeek"),
-        ProviderOption("grok", "xAI Grok"),
-        ProviderOption("localllm", "Local LLM"),
-        ProviderOption("external", "Codex CLI"),
-        ProviderOption("custom", "Custom Provider"),
+        ProviderOption("gemini", R.string.ai_assistant_provider_gemini),
+        ProviderOption("openai", R.string.ai_assistant_provider_openai),
+        ProviderOption("claude", R.string.ai_assistant_provider_claude),
+        ProviderOption("deepseek", R.string.ai_assistant_provider_deepseek),
+        ProviderOption("grok", R.string.ai_assistant_provider_grok),
+        ProviderOption("localllm", R.string.ai_assistant_provider_local_llm),
+        ProviderOption("external", R.string.ai_assistant_provider_codex_cli),
+        ProviderOption("custom", R.string.ai_assistant_provider_custom),
     )
 
 @Parcelize
@@ -207,8 +209,8 @@ private class AutoSwitchPreference(
     val pref = super.onCreateView(context) as androidx.preference.SwitchPreference
     preference = pref
     return pref.apply {
-      title = "Auto-switch Provider"
-      summary = "Switch to another configured provider on rate-limit, quota, or invalid-key errors"
+      title = context.getString(R.string.ai_assistant_auto_switch_title)
+      summary = context.getString(R.string.ai_assistant_auto_switch_summary)
       isChecked = ProviderSwitchDialog(context).isAutoSwitchEnabled()
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
@@ -242,8 +244,8 @@ private class ToolExecutionPreference(
     val pref = super.onCreateView(context) as androidx.preference.SwitchPreference
     preference = pref
     return pref.apply {
-      title = "AI Tool Execution"
-      summary = "Allow builds, focused reads/writes, safe terminal commands, and Termux package actions"
+      title = context.getString(R.string.ai_assistant_tool_execution_title)
+      summary = context.getString(R.string.ai_assistant_tool_execution_summary)
       isChecked = AIPermissionManager(context).isToolExecutionEnabled()
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
@@ -282,7 +284,7 @@ private class ProviderSelectionPreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "AI Provider"
+      title = context.getString(R.string.ai_assistant_provider_title)
       summary = buildSummary(context)
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
@@ -293,8 +295,11 @@ private class ProviderSelectionPreference(
     val currentProvider = Agents(context).getProvider()
     val selectedIndex = providerOptions.indexOfFirst { it.id == currentProvider }
     MaterialAlertDialogBuilder(context)
-        .setTitle("Select AI Provider")
-        .setSingleChoiceItems(providerOptions.map { it.label }.toTypedArray(), selectedIndex) { dialog, which ->
+        .setTitle(R.string.ai_assistant_select_provider_title)
+        .setSingleChoiceItems(
+            providerOptions.map { context.getString(it.labelRes) }.toTypedArray(),
+            selectedIndex,
+        ) { dialog, which ->
           dialog.dismiss()
           val option = providerOptions[which]
           if (option.id == "custom") {
@@ -319,8 +324,8 @@ private class ProviderSelectionPreference(
               }
             }
           } else if (option.id == "external") {
-            val settings = CodexTermuxBridge.ensureManagedPreset(context = context)
-            applyProviderSelection(context, "external", settings.resolvedDisplayLabel())
+            CodexTermuxBridge.ensureManagedPreset(context = context)
+            applyProviderSelection(context, "external", preferredExternalModel())
             onChanged?.invoke()
             refresh()
           } else {
@@ -329,7 +334,7 @@ private class ProviderSelectionPreference(
             refresh()
           }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(R.string.cancel, null)
         .show()
     return true
   }
@@ -339,10 +344,18 @@ private class ProviderSelectionPreference(
     val activeProfile = CustomProviderConfig.getActiveProfile()
     return when {
       providerId == "custom" && activeProfile != null ->
-        "Current: ${providerDisplayName(providerId)} • ${activeProfile.name}"
+        context.getString(
+            R.string.ai_assistant_current_value_with_detail,
+            providerDisplayName(context, providerId),
+            activeProfile.name,
+        )
       providerId == "external" && ExternalEngineConfig.hasValidConfig() ->
-        "Current: ${providerDisplayName(providerId)} • ${ExternalEngineConfig.getModelLabel()}"
-      else -> "Current: ${providerDisplayName(providerId)}"
+        context.getString(
+            R.string.ai_assistant_current_value_with_detail,
+            providerDisplayName(context, providerId),
+            preferredExternalModel(),
+        )
+      else -> context.getString(R.string.ai_assistant_current_value, providerDisplayName(context, providerId))
     }
   }
 
@@ -374,7 +387,7 @@ private class ModelSelectionPreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "AI Model"
+      title = context.getString(R.string.ai_assistant_model_title)
       summary = buildSummary(context)
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
@@ -385,8 +398,8 @@ private class ModelSelectionPreference(
     val agents = Agents(context)
     val providerId = agents.getProvider()
     if (providerId == "external" && !ExternalEngineConfig.hasValidConfig()) {
-      val settings = CodexTermuxBridge.ensureManagedPreset(context = context)
-      applyProviderSelection(context, "external", settings.resolvedDisplayLabel())
+      CodexTermuxBridge.ensureManagedPreset(context = context)
+      applyProviderSelection(context, "external", preferredExternalModel())
       onChanged?.invoke()
       refresh()
       return true
@@ -409,28 +422,37 @@ private class ModelSelectionPreference(
 
     val models = agents.getModelsForProvider(providerId).filter { it.isNotBlank() }
     if (models.isEmpty()) {
-      showToast(context, "No models configured for ${providerDisplayName(providerId)}")
+      showToast(
+          context,
+          context.getString(
+              R.string.ai_assistant_no_models_configured,
+              providerDisplayName(context, providerId),
+          ),
+      )
       return true
     }
 
     val currentModel = agents.getAgent()
     val selectedIndex = models.indexOfFirst { it == currentModel }
     MaterialAlertDialogBuilder(context)
-        .setTitle("Select AI Model")
+        .setTitle(R.string.ai_assistant_select_model_title)
         .setSingleChoiceItems(models.toTypedArray(), selectedIndex) { dialog, which ->
           dialog.dismiss()
           agents.setAgent(models[which])
           onChanged?.invoke()
           refresh()
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(R.string.cancel, null)
         .show()
     return true
   }
 
   private fun buildSummary(context: Context): String {
-    return Agents(context).getAgent().takeIf { it.isNotBlank() }?.let { "Current: $it" }
-        ?: "No model selected"
+    return Agents(context)
+        .getAgent()
+        .takeIf { it.isNotBlank() }
+        ?.let { context.getString(R.string.ai_assistant_current_value, it) }
+        ?: context.getString(R.string.ai_assistant_no_model_selected)
   }
 
   override fun refresh() {
@@ -461,8 +483,8 @@ private class CustomProfilePreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "Active Custom Profile"
-      summary = buildSummary()
+      title = context.getString(R.string.ai_assistant_active_custom_profile_title)
+      summary = buildSummary(context)
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false) && CustomProviderConfig.hasProfiles()
     }
   }
@@ -478,7 +500,7 @@ private class CustomProfilePreference(
     val activeId = CustomProviderConfig.getActiveProfileId()
     val selectedIndex = profiles.indexOfFirst { it.id == activeId }
     MaterialAlertDialogBuilder(context)
-        .setTitle("Select Active Custom Profile")
+        .setTitle(R.string.ai_assistant_select_active_custom_profile_title)
         .setSingleChoiceItems(profiles.map { it.name }.toTypedArray(), selectedIndex) { dialog, which ->
           dialog.dismiss()
           val selectedProfile = profiles[which]
@@ -489,19 +511,19 @@ private class CustomProfilePreference(
           onChanged?.invoke()
           refresh()
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(R.string.cancel, null)
         .show()
     return true
   }
 
-  private fun buildSummary(): String {
+  private fun buildSummary(context: Context): String {
     val activeProfile = CustomProviderConfig.getActiveProfile()
     return if (activeProfile == null) {
-      "No custom profile configured"
+      context.getString(R.string.ai_assistant_no_custom_profile_configured)
     } else {
       listOfNotNull(
               activeProfile.name.takeIf { it.isNotBlank() },
-              activeProfile.apiType.displayName,
+              apiTypeDisplayName(context, activeProfile.apiType),
               activeProfile.modelId.takeIf { it.isNotBlank() },
           )
           .joinToString(" • ")
@@ -510,7 +532,7 @@ private class CustomProfilePreference(
 
   override fun refresh() {
     val pref = preference ?: return
-    pref.summary = buildSummary()
+    pref.summary = buildSummary(pref.context)
     pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false) && CustomProviderConfig.hasProfiles()
   }
 
@@ -536,37 +558,37 @@ private class ExternalEnginePreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "Codex CLI Bridge"
-      summary = buildSummary()
+      title = context.getString(R.string.ai_assistant_codex_bridge_title)
+      summary = buildSummary(context)
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
   }
 
   override fun onPreferenceClick(preference: Preference): Boolean {
-    val settings = CodexTermuxBridge.ensureManagedPreset(context = preference.context)
+    CodexTermuxBridge.ensureManagedPreset(context = preference.context)
     if (Agents(preference.context).getProvider() == "external") {
-      applyProviderSelection(preference.context, "external", settings.resolvedDisplayLabel())
+      applyProviderSelection(preference.context, "external", preferredExternalModel())
     }
     onChanged?.invoke()
     refresh()
-    showToast(preference.context, "Codex bridge preset applied")
+    showToast(preference.context, preference.context.getString(R.string.ai_assistant_codex_preset_applied))
     return true
   }
 
-  private fun buildSummary(): String {
+  private fun buildSummary(context: Context): String {
     val codexStatus = CodexTermuxBridge.status()
     if (!ExternalEngineConfig.hasValidConfig()) {
       return codexStatus.summaryText()
     }
     return listOf(
         codexStatus.summaryText(),
-        "managed session bridge active"
+        context.getString(R.string.ai_assistant_codex_bridge_active),
     ).joinToString(" • ")
   }
 
   override fun refresh() {
     val pref = preference ?: return
-    pref.summary = buildSummary()
+    pref.summary = buildSummary(pref.context)
     pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
   }
 
@@ -592,8 +614,8 @@ private class CodexCliPreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "Codex CLI Config"
-      summary = buildSummary()
+      title = context.getString(R.string.ai_assistant_codex_cli_config_title)
+      summary = buildSummary(context)
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
   }
@@ -606,18 +628,18 @@ private class CodexCliPreference(
     return true
   }
 
-  private fun buildSummary(): String {
+  private fun buildSummary(context: Context): String {
     val settings = CodexCliConfig.getSettings()
     return if (settings.isValid) {
       settings.summaryText()
     } else {
-      "Configure provider ID, base URL, key, and model for the Termux Codex bridge"
+      context.getString(R.string.ai_assistant_codex_cli_config_summary)
     }
   }
 
   override fun refresh() {
     val pref = preference ?: return
-    pref.summary = buildSummary()
+    pref.summary = buildSummary(pref.context)
     pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
   }
 
@@ -643,7 +665,7 @@ private class InstallCodexTermuxPreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "Install Codex CLI"
+      title = context.getString(R.string.ai_assistant_install_codex_cli_title)
       summary = CodexTermuxBridge.status().summaryText()
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
@@ -656,7 +678,7 @@ private class InstallCodexTermuxPreference(
     )
     onChanged?.invoke()
     refresh()
-    showToast(preference.context, "Opened Codex CLI installer and applied the preset")
+    showToast(preference.context, preference.context.getString(R.string.ai_assistant_install_codex_cli_opened))
     return true
   }
 
@@ -688,8 +710,15 @@ private class AddCustomProfilePreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "Add Custom Profile"
-      summary = if (CustomProviderConfig.hasProfiles()) "Create another reusable custom provider profile" else "Create your first custom provider profile"
+      title = context.getString(R.string.ai_assistant_add_custom_profile_title)
+      summary =
+          context.getString(
+              if (CustomProviderConfig.hasProfiles()) {
+                R.string.ai_assistant_add_custom_profile_summary_more
+              } else {
+                R.string.ai_assistant_add_custom_profile_summary_first
+              }
+          )
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
     }
   }
@@ -708,7 +737,14 @@ private class AddCustomProfilePreference(
 
   override fun refresh() {
     val pref = preference ?: return
-    pref.summary = if (CustomProviderConfig.hasProfiles()) "Create another reusable custom provider profile" else "Create your first custom provider profile"
+    pref.summary =
+        pref.context.getString(
+            if (CustomProviderConfig.hasProfiles()) {
+              R.string.ai_assistant_add_custom_profile_summary_more
+            } else {
+              R.string.ai_assistant_add_custom_profile_summary_first
+            }
+        )
     pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
   }
 
@@ -734,8 +770,11 @@ private class EditCustomProfilePreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "Edit Active Custom Profile"
-      summary = CustomProviderConfig.getActiveProfile()?.let { "Edit ${it.name}" } ?: "No custom profile to edit"
+      title = context.getString(R.string.ai_assistant_edit_custom_profile_title)
+      summary =
+          CustomProviderConfig.getActiveProfile()?.let {
+            context.getString(R.string.ai_assistant_edit_custom_profile_summary, it.name)
+          } ?: context.getString(R.string.ai_assistant_no_custom_profile_to_edit)
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false) && CustomProviderConfig.hasProfiles()
     }
   }
@@ -755,7 +794,10 @@ private class EditCustomProfilePreference(
 
   override fun refresh() {
     val pref = preference ?: return
-    pref.summary = CustomProviderConfig.getActiveProfile()?.let { "Edit ${it.name}" } ?: "No custom profile to edit"
+    pref.summary =
+        CustomProviderConfig.getActiveProfile()?.let {
+          pref.context.getString(R.string.ai_assistant_edit_custom_profile_summary, it.name)
+        } ?: pref.context.getString(R.string.ai_assistant_no_custom_profile_to_edit)
     pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false) && CustomProviderConfig.hasProfiles()
   }
 
@@ -781,8 +823,11 @@ private class DeleteCustomProfilePreference(
     val pref = super.onCreateView(context)
     preference = pref
     return pref.apply {
-      title = "Delete Active Custom Profile"
-      summary = CustomProviderConfig.getActiveProfile()?.let { "Delete ${it.name}" } ?: "No custom profile to delete"
+      title = context.getString(R.string.ai_assistant_delete_custom_profile_title)
+      summary =
+          CustomProviderConfig.getActiveProfile()?.let {
+            context.getString(R.string.ai_assistant_delete_custom_profile_summary, it.name)
+          } ?: context.getString(R.string.ai_assistant_no_custom_profile_to_delete)
       isEnabled = prefManager.getBoolean("ai_agent_enabled", false) && CustomProviderConfig.hasProfiles()
     }
   }
@@ -791,10 +836,10 @@ private class DeleteCustomProfilePreference(
     val context = preference.context
     val activeProfile = CustomProviderConfig.getActiveProfile() ?: return true
     MaterialAlertDialogBuilder(context)
-        .setTitle("Delete Custom Profile")
-        .setMessage("Delete '${activeProfile.name}'?")
-        .setNegativeButton("Cancel", null)
-        .setPositiveButton("Delete") { _, _ ->
+        .setTitle(R.string.ai_assistant_delete_custom_profile_dialog_title)
+        .setMessage(context.getString(R.string.ai_assistant_delete_custom_profile_dialog_message, activeProfile.name))
+        .setNegativeButton(R.string.cancel, null)
+        .setPositiveButton(R.string.delete) { _, _ ->
           if (CustomProviderConfig.deleteProfile(activeProfile.id)) {
             CustomProviderConfig.getActiveProfile()?.takeIf { Agents(context).getProvider() == "custom" }?.let {
               applyProviderSelection(context, "custom", it.modelId)
@@ -802,7 +847,7 @@ private class DeleteCustomProfilePreference(
             onChanged?.invoke()
             refresh()
           } else {
-            showToast(context, "Failed to delete custom profile")
+            showToast(context, context.getString(R.string.ai_assistant_delete_custom_profile_failed))
           }
         }
         .show()
@@ -811,7 +856,10 @@ private class DeleteCustomProfilePreference(
 
   override fun refresh() {
     val pref = preference ?: return
-    pref.summary = CustomProviderConfig.getActiveProfile()?.let { "Delete ${it.name}" } ?: "No custom profile to delete"
+    pref.summary =
+        CustomProviderConfig.getActiveProfile()?.let {
+          pref.context.getString(R.string.ai_assistant_delete_custom_profile_summary, it.name)
+        } ?: pref.context.getString(R.string.ai_assistant_no_custom_profile_to_delete)
     pref.isEnabled = prefManager.getBoolean("ai_agent_enabled", false) && CustomProviderConfig.hasProfiles()
   }
 
@@ -820,8 +868,20 @@ private class DeleteCustomProfilePreference(
   }
 }
 
-private fun providerDisplayName(providerId: String): String {
-  return providerOptions.firstOrNull { it.id == providerId }?.label ?: providerId.uppercase()
+private fun providerDisplayName(context: Context, providerId: String): String {
+  return providerOptions.firstOrNull { it.id == providerId }?.let { context.getString(it.labelRes) }
+      ?: providerId.uppercase()
+}
+
+private fun apiTypeDisplayName(context: Context, apiType: CustomProviderApiType): String {
+  return when (apiType) {
+    CustomProviderApiType.OPENAI_CHAT ->
+        context.getString(R.string.ai_assistant_custom_provider_api_type_openai_chat)
+    CustomProviderApiType.OPENAI_RESPONSES ->
+        context.getString(R.string.ai_assistant_custom_provider_api_type_openai_responses)
+    CustomProviderApiType.CLAUDE_MESSAGES ->
+        context.getString(R.string.ai_assistant_custom_provider_api_type_claude_messages)
+  }
 }
 
 private fun applyProviderSelection(context: Context, providerId: String, preferredModel: String? = null) {
@@ -833,7 +893,7 @@ private fun applyProviderSelection(context: Context, providerId: String, preferr
             ?: CustomProviderConfig.getModelId().ifBlank { CustomProviderConfig.getAvailableModels().firstOrNull().orEmpty() }
       } else if (providerId == "external") {
         preferredModel?.takeIf { it.isNotBlank() }
-            ?: ExternalEngineConfig.getModelLabel()
+            ?: preferredExternalModel()
       } else {
         preferredModel?.takeIf { agents.isValidModelForProvider(it, providerId) }
             ?: agents.getModelsForProvider(providerId).firstOrNull().orEmpty()
@@ -851,7 +911,7 @@ private fun showCustomProviderDialog(
 ) {
   val activity = context.findFragmentActivity()
   if (activity == null) {
-    showToast(context, "Unable to open the custom provider editor from this screen")
+    showToast(context, context.getString(R.string.ai_assistant_open_custom_provider_editor_failed))
     return
   }
   CustomProviderConfigDialog(profileId = profileId, createNew = createNew, onSave = onSave)
@@ -864,11 +924,15 @@ private fun showCodexCliDialog(
 ) {
   val activity = context.findFragmentActivity()
   if (activity == null) {
-    showToast(context, "Unable to open the Codex CLI editor from this screen")
+    showToast(context, context.getString(R.string.ai_assistant_open_codex_editor_failed))
     return
   }
   CodexCliConfigDialog(onSave = onSave)
       .show(activity.supportFragmentManager, "CodexCliConfigDialog")
+}
+
+private fun preferredExternalModel(): String {
+  return CodexCliConfig.getModelId().ifBlank { ExternalEngineConfig.getModelLabel() }
 }
 
 private fun showToast(context: Context, message: String) {
@@ -880,6 +944,42 @@ private tailrec fun Context.findFragmentActivity(): FragmentActivity? {
     is FragmentActivity -> this
     is ContextWrapper -> baseContext.findFragmentActivity()
     else -> null
+  }
+}
+
+private fun showApiKeyDialog(
+    context: Context,
+    preferenceKey: String,
+    @StringRes hintRes: Int,
+    @StringRes titleRes: Int,
+    @StringRes messageRes: Int,
+    onSaved: (String) -> Unit,
+) {
+  val editText =
+      android.widget.EditText(context).apply {
+        setText(prefManager.getString(preferenceKey, ""))
+        hint = context.getString(hintRes)
+      }
+
+  MaterialAlertDialogBuilder(context)
+      .setTitle(titleRes)
+      .setMessage(messageRes)
+      .setView(editText)
+      .setPositiveButton(R.string.save) { _, _ ->
+        val apiKey = editText.text.toString().trim()
+        prefManager.putString(preferenceKey, apiKey)
+        onSaved(apiKey)
+      }
+      .setNegativeButton(R.string.cancel, null)
+      .show()
+}
+
+private fun apiKeySummary(context: Context, preferenceKey: String): String {
+  val apiKey = prefManager.getString(preferenceKey, "")
+  return if (apiKey.isBlank()) {
+    context.getString(R.string.ai_assistant_api_key_click_to_set)
+  } else {
+    context.getString(R.string.ai_assistant_api_key_masked_summary, apiKey.take(8))
   }
 }
 
@@ -897,7 +997,7 @@ private class GrokApiKey(
         androidx.preference.Preference(context).apply {
           key = "ai_agent_grok_api_key"
           title = context.getString(R.string.ai_agent_grok_api_key)
-          summary = getSummaryText()
+          summary = apiKeySummary(context, key)
           isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
         }
     return preference!!
@@ -905,36 +1005,20 @@ private class GrokApiKey(
 
   override fun onPreferenceClick(preference: Preference): Boolean {
     val context = preference.context
-
-    val editText = android.widget.EditText(context)
-    editText.setText(prefManager.getString("ai_agent_grok_api_key", ""))
-    editText.hint = "Enter your xAI Grok API key"
-
-    val dialog =
-        com.google.android.material.dialog
-            .MaterialAlertDialogBuilder(context)
-            .setTitle("Grok API Key")
-            .setMessage("Enter your xAI Grok API key")
-            .setView(editText)
-            .setPositiveButton("Save") { _, _ ->
-              val apiKey = editText.text.toString().trim()
-              prefManager.putString("ai_agent_grok_api_key", apiKey)
-              preference.summary = getSummaryText()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-
-    dialog.show()
+    showApiKeyDialog(
+        context = context,
+        preferenceKey = key,
+        hintRes = R.string.ai_assistant_api_key_hint_grok,
+        titleRes = R.string.ai_assistant_api_key_dialog_title_grok,
+        messageRes = R.string.ai_assistant_api_key_dialog_message_grok,
+    ) {
+      preference.summary = apiKeySummary(context, key)
+    }
     return true
   }
 
   fun setEnabled(enabled: Boolean) {
     preference?.isEnabled = enabled
-  }
-
-  private fun getSummaryText(): String {
-    val apiKey = prefManager.getString("ai_agent_grok_api_key", "")
-    return if (apiKey.isBlank()) "Click to set API key" else "API Key: ${apiKey.take(8)}..."
   }
 }
 
@@ -951,7 +1035,7 @@ private class GeminiApiKey(
         androidx.preference.Preference(context).apply {
           key = "ai_agent_gemini_api_key"
           title = context.getString(R.string.ai_agent_api_key)
-          summary = getSummaryText()
+          summary = apiKeySummary(context, key)
           isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
         }
     return preference!!
@@ -959,36 +1043,20 @@ private class GeminiApiKey(
 
   override fun onPreferenceClick(preference: Preference): Boolean {
     val context = preference.context
-
-    val editText = android.widget.EditText(context)
-    editText.setText(prefManager.getString("ai_agent_gemini_api_key", ""))
-    editText.hint = "Enter your Google Gemini API key"
-
-    val dialog =
-        com.google.android.material.dialog
-            .MaterialAlertDialogBuilder(context)
-            .setTitle("Gemini API Key")
-            .setMessage("Enter your Google Gemini API key")
-            .setView(editText)
-            .setPositiveButton("Save") { _, _ ->
-              val apiKey = editText.text.toString().trim()
-              prefManager.putString("ai_agent_gemini_api_key", apiKey)
-              preference.summary = getSummaryText()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-
-    dialog.show()
+    showApiKeyDialog(
+        context = context,
+        preferenceKey = key,
+        hintRes = R.string.ai_assistant_api_key_hint_gemini,
+        titleRes = R.string.ai_assistant_api_key_dialog_title_gemini,
+        messageRes = R.string.ai_assistant_api_key_dialog_message_gemini,
+    ) {
+      preference.summary = apiKeySummary(context, key)
+    }
     return true
   }
 
   fun setEnabled(enabled: Boolean) {
     preference?.isEnabled = enabled
-  }
-
-  private fun getSummaryText(): String {
-    val apiKey = prefManager.getString("ai_agent_gemini_api_key", "")
-    return if (apiKey.isBlank()) "Click to set API key" else "API Key: ${apiKey.take(8)}..."
   }
 }
 
@@ -1005,7 +1073,7 @@ private class DeepseekApiKey(
         androidx.preference.Preference(context).apply {
           key = "ai_agent_deepseek_api_key"
           title = context.getString(R.string.ai_agent_deepseek_api_key)
-          summary = getSummaryText()
+          summary = apiKeySummary(context, key)
           isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
         }
     return preference!!
@@ -1013,36 +1081,20 @@ private class DeepseekApiKey(
 
   override fun onPreferenceClick(preference: Preference): Boolean {
     val context = preference.context
-
-    val editText = android.widget.EditText(context)
-    editText.setText(prefManager.getString("ai_agent_deepseek_api_key", ""))
-    editText.hint = "Enter your Deepseek API key"
-
-    val dialog =
-        com.google.android.material.dialog
-            .MaterialAlertDialogBuilder(context)
-            .setTitle("Deepseek API Key")
-            .setMessage("Enter your Deepseek API key")
-            .setView(editText)
-            .setPositiveButton("Save") { _, _ ->
-              val apiKey = editText.text.toString().trim()
-              prefManager.putString("ai_agent_deepseek_api_key", apiKey)
-              preference.summary = getSummaryText()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-
-    dialog.show()
+    showApiKeyDialog(
+        context = context,
+        preferenceKey = key,
+        hintRes = R.string.ai_assistant_api_key_hint_deepseek,
+        titleRes = R.string.ai_assistant_api_key_dialog_title_deepseek,
+        messageRes = R.string.ai_assistant_api_key_dialog_message_deepseek,
+    ) {
+      preference.summary = apiKeySummary(context, key)
+    }
     return true
   }
 
   fun setEnabled(enabled: Boolean) {
     preference?.isEnabled = enabled
-  }
-
-  private fun getSummaryText(): String {
-    val apiKey = prefManager.getString("ai_agent_deepseek_api_key", "")
-    return if (apiKey.isBlank()) "Click to set API key" else "API Key: ${apiKey.take(8)}..."
   }
 }
 
@@ -1059,7 +1111,7 @@ private class OpenAIApiKey(
         androidx.preference.Preference(context).apply {
           key = "ai_agent_openai_api_key"
           title = context.getString(R.string.ai_agent_openai_api_key)
-          summary = getSummaryText()
+          summary = apiKeySummary(context, key)
           isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
         }
     return preference!!
@@ -1067,36 +1119,20 @@ private class OpenAIApiKey(
 
   override fun onPreferenceClick(preference: Preference): Boolean {
     val context = preference.context
-
-    val editText = android.widget.EditText(context)
-    editText.setText(prefManager.getString("ai_agent_openai_api_key", ""))
-    editText.hint = "Enter your OpenAI API key"
-
-    val dialog =
-        com.google.android.material.dialog
-            .MaterialAlertDialogBuilder(context)
-            .setTitle("OpenAI API Key")
-            .setMessage("Enter your OpenAI API key")
-            .setView(editText)
-            .setPositiveButton("Save") { _, _ ->
-              val apiKey = editText.text.toString().trim()
-              prefManager.putString("ai_agent_openai_api_key", apiKey)
-              preference.summary = getSummaryText()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-
-    dialog.show()
+    showApiKeyDialog(
+        context = context,
+        preferenceKey = key,
+        hintRes = R.string.ai_assistant_api_key_hint_openai,
+        titleRes = R.string.ai_assistant_api_key_dialog_title_openai,
+        messageRes = R.string.ai_assistant_api_key_dialog_message_openai,
+    ) {
+      preference.summary = apiKeySummary(context, key)
+    }
     return true
   }
 
   fun setEnabled(enabled: Boolean) {
     preference?.isEnabled = enabled
-  }
-
-  private fun getSummaryText(): String {
-    val apiKey = prefManager.getString("ai_agent_openai_api_key", "")
-    return if (apiKey.isBlank()) "Click to set API key" else "API Key: ${apiKey.take(8)}..."
   }
 }
 
@@ -1113,7 +1149,7 @@ private class AnthropicApiKey(
         androidx.preference.Preference(context).apply {
           key = "ai_agent_anthropic_api_key"
           title = context.getString(R.string.ai_agent_anthropic_api_key)
-          summary = getSummaryText()
+          summary = apiKeySummary(context, key)
           isEnabled = prefManager.getBoolean("ai_agent_enabled", false)
         }
     return preference!!
@@ -1121,35 +1157,19 @@ private class AnthropicApiKey(
 
   override fun onPreferenceClick(preference: Preference): Boolean {
     val context = preference.context
-
-    val editText = android.widget.EditText(context)
-    editText.setText(prefManager.getString("ai_agent_anthropic_api_key", ""))
-    editText.hint = "Enter your Anthropic API key"
-
-    val dialog =
-        com.google.android.material.dialog
-            .MaterialAlertDialogBuilder(context)
-            .setTitle("Anthropic API Key")
-            .setMessage("Enter your Anthropic API key")
-            .setView(editText)
-            .setPositiveButton("Save") { _, _ ->
-              val apiKey = editText.text.toString().trim()
-              prefManager.putString("ai_agent_anthropic_api_key", apiKey)
-              preference.summary = getSummaryText()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-
-    dialog.show()
+    showApiKeyDialog(
+        context = context,
+        preferenceKey = key,
+        hintRes = R.string.ai_assistant_api_key_hint_anthropic,
+        titleRes = R.string.ai_assistant_api_key_dialog_title_anthropic,
+        messageRes = R.string.ai_assistant_api_key_dialog_message_anthropic,
+    ) {
+      preference.summary = apiKeySummary(context, key)
+    }
     return true
   }
 
   fun setEnabled(enabled: Boolean) {
     preference?.isEnabled = enabled
-  }
-
-  private fun getSummaryText(): String {
-    val apiKey = prefManager.getString("ai_agent_anthropic_api_key", "")
-    return if (apiKey.isBlank()) "Click to set API key" else "API Key: ${apiKey.take(8)}..."
   }
 }

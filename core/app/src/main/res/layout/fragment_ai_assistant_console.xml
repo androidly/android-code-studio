@@ -27,19 +27,9 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="AI Assistant"
+                android:text="@string/ai_assistant"
                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
                 android:textStyle="bold" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/engineButton"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:text="Codex"
-                android:textAllCaps="false"
-                app:icon="@drawable/ic_ai_agent" />
 
             <TextView
                 android:id="@+id/providerText"
@@ -47,6 +37,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:background="?attr/colorSurfaceContainerHigh"
+                android:clickable="true"
+                android:focusable="true"
                 android:paddingStart="10dp"
                 android:paddingTop="5dp"
                 android:paddingEnd="10dp"
@@ -61,6 +53,7 @@
                 android:layout_marginStart="6dp"
                 android:background="?attr/colorSecondaryContainer"
                 android:ellipsize="end"
+                android:maxWidth="160dp"
                 android:maxLines="1"
                 android:paddingStart="10dp"
                 android:paddingTop="5dp"
@@ -68,6 +61,17 @@
                 android:paddingBottom="5dp"
                 android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
                 android:textColor="?attr/colorOnSecondaryContainer" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/engineButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:minWidth="0dp"
+                android:text="@string/ai_assistant_console_configure"
+                android:textAllCaps="false"
+                app:icon="@drawable/ic_settings" />
         </LinearLayout>
 
         <TextView
@@ -138,7 +142,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:hint="Message or /command"
+                        android:hint="@string/ai_assistant_console_input_hint"
                         app:boxBackgroundMode="none">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -162,7 +166,7 @@
                         android:layout_width="42dp"
                         android:layout_height="42dp"
                         android:layout_marginStart="6dp"
-                        android:contentDescription="Send request"
+                        android:contentDescription="@string/ai_assistant_console_send_request"
                         android:insetLeft="0dp"
                         android:insetTop="0dp"
                         android:insetRight="0dp"
@@ -190,7 +194,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="monospace"
-                        android:text="/new  /list  /switch  /help"
+                        android:text="@string/ai_assistant_console_shortcuts"
                         android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
                         android:textColor="?attr/colorOutline" />
 
@@ -200,7 +204,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:minWidth="0dp"
-                        android:text="Review"
+                        android:text="@string/ai_assistant_console_review"
                         android:textAllCaps="false" />
 
                     <com.google.android.material.button.MaterialButton
@@ -209,7 +213,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:minWidth="0dp"
-                        android:text="Clear"
+                        android:text="@string/ai_assistant_console_clear"
                         android:textAllCaps="false" />
 
                     <com.google.android.material.button.MaterialButton
@@ -218,7 +222,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:minWidth="0dp"
-                        android:text="Stop"
+                        android:text="@string/ai_assistant_console_stop"
                         android:textAllCaps="false" />
 
                 </LinearLayout>
@@ -238,7 +242,7 @@
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="98dp"
         android:minWidth="0dp"
-        android:text="Latest"
+        android:text="@string/ai_assistant_console_latest"
         android:textAllCaps="false"
         android:visibility="gone" />
 

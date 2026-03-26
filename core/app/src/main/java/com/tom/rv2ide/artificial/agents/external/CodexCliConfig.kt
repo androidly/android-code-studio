@@ -174,6 +174,10 @@ object CodexCliConfig {
         return getSettings().isValid
     }
 
+    fun getModelId(): String {
+        return getSettings().model.trim()
+    }
+
     fun isValidProviderId(value: String): Boolean {
         return value.isNotBlank() && providerIdRegex.matches(value)
     }

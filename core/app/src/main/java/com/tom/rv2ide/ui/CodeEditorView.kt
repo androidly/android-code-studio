@@ -210,6 +210,17 @@ class CodeEditorView(context: Context, file: File, selection: Range) :
     editor?.markUnmodified()
   }
 
+  fun reloadFromDiskIfUnmodified(): Boolean {
+    val targetFile = file ?: return false
+    if (!targetFile.exists() || isModified) {
+      return false
+    }
+
+    val selection = editor?.cursorLSPRange ?: Range.NONE
+    readFileAndApplySelection(targetFile, selection)
+    return true
+  }
+
   /**
    * Saves the content of the editor to the editor's file.
    *
