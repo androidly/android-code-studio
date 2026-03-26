@@ -6,16 +6,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.annotation.AttrRes
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
-import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.tom.rv2ide.R
 
 class AIAssistantTimelineAdapter(
@@ -23,7 +20,7 @@ class AIAssistantTimelineAdapter(
     private val onSessionSwitchRequested: ((String) -> Unit)? = null,
     private val onSessionDeleteRequested: ((String) -> Unit)? = null
 ) : ListAdapter<AIAssistantTimelineItem, RecyclerView.ViewHolder>(TimelineDiffCallback) {
-    private val streamAttachmentUiStates = mutableMapOf<Long, StreamAttachmentUiState>()
+    private val streamAttachmentUiStates = mutableMapOf<Long, AIAssistantStreamAttachmentUiState>()
 
     init {
         setHasStableIds(true)
@@ -67,7 +64,10 @@ class AIAssistantTimelineAdapter(
         return when (viewType) {
             VIEW_TYPE_HISTORY -> HistoryDividerViewHolder(inflater.inflate(R.layout.item_ai_assistant_history, parent, false))
             VIEW_TYPE_SESSION_BROWSER -> SessionBrowserViewHolder(inflater.inflate(R.layout.item_ai_assistant_session_browser, parent, false))
-            VIEW_TYPE_STREAMING_RESPONSE -> StreamingResponseViewHolder(inflater.inflate(R.layout.item_ai_assistant_stream, parent, false))
+            VIEW_TYPE_STREAMING_RESPONSE -> AIAssistantStreamingResponseViewHolder(
+                inflater.inflate(R.layout.item_ai_assistant_stream, parent, false),
+                streamAttachmentUiStates
+            )
             VIEW_TYPE_USER -> UserViewHolder(inflater.inflate(R.layout.item_ai_assistant_user, parent, false))
             VIEW_TYPE_DIFF -> DiffViewHolder(inflater.inflate(R.layout.item_ai_assistant_diff, parent, false), onDiffClicked)
             VIEW_TYPE_STATUS -> StatusViewHolder(inflater.inflate(R.layout.item_ai_assistant_status, parent, false))
@@ -78,7 +78,7 @@ class AIAssistantTimelineAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val item = getItem(position)) {
             is AIAssistantHistoryDividerItem -> (holder as HistoryDividerViewHolder).bind(item)
-            is AIAssistantStreamingResponseItem -> (holder as StreamingResponseViewHolder).bind(item)
+            is AIAssistantStreamingResponseItem -> (holder as AIAssistantStreamingResponseViewHolder).bind(item)
             is AIAssistantUserItem -> (holder as UserViewHolder).bind(item)
             is AIAssistantResponseItem -> (holder as MessageViewHolder).bind("Assistant", item.response, item.id)
             is AIAssistantWelcomeItem -> (holder as MessageViewHolder).bind(item.title, item.body, item.id)
@@ -92,7 +92,7 @@ class AIAssistantTimelineAdapter(
         when (holder) {
             is UserViewHolder -> holder.recycle()
             is MessageViewHolder -> holder.recycle()
-            is StreamingResponseViewHolder -> holder.recycle()
+            is AIAssistantStreamingResponseViewHolder -> holder.recycle()
             is StatusViewHolder -> holder.recycle()
             else -> Unit
         }
@@ -103,7 +103,7 @@ class AIAssistantTimelineAdapter(
         when (holder) {
             is UserViewHolder -> holder.detach()
             is MessageViewHolder -> holder.detach()
-            is StreamingResponseViewHolder -> holder.detach()
+            is AIAssistantStreamingResponseViewHolder -> holder.detach()
             is StatusViewHolder -> holder.detach()
             else -> Unit
         }
@@ -219,7 +219,15 @@ class AIAssistantTimelineAdapter(
                 textAttr = com.google.android.material.R.attr.colorOnSurface
                 strokeAttr = com.google.android.material.R.attr.colorOutlineVariant
             }
-            applyCardTone(rowCard, itemView, containerAttr, textAttr, rowTitle, rowSummary, rowMeta)
+            AIAssistantTimelineCardTone.apply(
+                rowCard,
+                itemView,
+                containerAttr,
+                textAttr,
+                rowTitle,
+                rowSummary,
+                rowMeta
+            )
             rowCard.strokeColor = MaterialColors.getColor(itemView, strokeAttr, 0)
             if (row.isActive) {
                 rowState.setBackgroundColor(
@@ -252,135 +260,6 @@ class AIAssistantTimelineAdapter(
         }
     }
 
-    private inner class StreamingResponseViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val card = itemView.findViewById<MaterialCardView>(R.id.streamCard)
-        private val title = itemView.findViewById<TextView>(R.id.streamTitle)
-        private val status = itemView.findViewById<TextView>(R.id.streamStatus)
-        private val body = itemView.findViewById<TextView>(R.id.streamBody)
-        private val activityCard = itemView.findViewById<MaterialCardView>(R.id.streamActivityCard)
-        private val attachmentHeader = itemView.findViewById<View>(R.id.streamAttachmentHeader)
-        private val attachmentToggleText = itemView.findViewById<TextView>(R.id.streamAttachmentToggleText)
-        private val attachmentChevron = itemView.findViewById<TextView>(R.id.streamAttachmentChevron)
-        private val attachmentPreview = itemView.findViewById<TextView>(R.id.streamAttachmentPreview)
-        private val attachmentRecyclerView = itemView.findViewById<RecyclerView>(R.id.streamAttachmentRecyclerView)
-        private val progress = itemView.findViewById<LinearProgressIndicator>(R.id.streamProgress)
-        private val attachmentAdapter = AIAssistantAttachmentAdapter()
-        private var lastAttachmentSignature: String? = null
-        private var boundItem: AIAssistantStreamingResponseItem? = null
-
-        init {
-            attachmentRecyclerView.apply {
-                layoutManager = LinearLayoutManager(itemView.context)
-                adapter = attachmentAdapter
-                itemAnimator = null
-                isNestedScrollingEnabled = false
-                overScrollMode = View.OVER_SCROLL_NEVER
-                setRecycledViewPool(toolAttachmentViewPool)
-            }
-            attachmentHeader.setOnClickListener {
-                val item = boundItem ?: return@setOnClickListener
-                val state = resolveAttachmentUiState(item)
-                streamAttachmentUiStates[item.id] = state.copy(expanded = !state.expanded, userToggled = true)
-                applyAttachmentSection(item, !state.expanded)
-            }
-        }
-
-        fun bind(item: AIAssistantStreamingResponseItem) {
-            boundItem = item
-            title.text = item.header
-            status.text = item.status.orEmpty()
-            status.isVisible = status.text.toString().isNotBlank()
-            val hasResponse = item.response.isNotBlank()
-            val bodyText = when {
-                hasResponse -> item.response
-                !item.placeholder.isNullOrBlank() -> item.placeholder
-                item.isWorking -> "Working on it..."
-                else -> ""
-            }
-            val (containerAttr, textAttr) = if (item.isStreaming && !hasResponse) {
-                com.google.android.material.R.attr.colorSecondaryContainer to com.google.android.material.R.attr.colorOnSecondaryContainer
-            } else if (item.isStreaming) {
-                com.google.android.material.R.attr.colorSurfaceContainerHighest to com.google.android.material.R.attr.colorOnSurface
-            } else {
-                com.google.android.material.R.attr.colorSurfaceContainerHigh to com.google.android.material.R.attr.colorOnSurface
-            }
-            applyCardTone(card, itemView, containerAttr, textAttr, title, body)
-            AIAssistantRichTextRenderer.render(
-                body,
-                bodyText,
-                messageId = item.id,
-                isStreaming = hasResponse && item.isStreaming
-            )
-            applyAttachmentSection(item)
-            progress.isVisible = item.isStreaming
-        }
-
-        private fun applyAttachmentSection(item: AIAssistantStreamingResponseItem, expandedOverride: Boolean? = null) {
-            val hasAttachments = item.attachments.isNotEmpty()
-            activityCard.isVisible = hasAttachments
-            if (!hasAttachments) {
-                attachmentPreview.text = ""
-                attachmentRecyclerView.isVisible = false
-                return
-            }
-
-            bindAttachmentsIfNeeded(item.attachments)
-            val attachmentCount = item.attachments.size
-            val expanded = expandedOverride ?: resolveAttachmentUiState(item).expanded
-            attachmentToggleText.text = if (expanded) {
-                "Activity · $attachmentCount " + if (attachmentCount == 1) "step" else "steps"
-            } else {
-                "Show $attachmentCount " + if (attachmentCount == 1) "step" else "steps"
-            }
-            attachmentChevron.text = if (expanded) "v" else ">"
-            attachmentPreview.text = buildAttachmentPreviewText(item.attachments, expanded)
-            attachmentPreview.isVisible = attachmentPreview.text.isNotBlank()
-            attachmentRecyclerView.isVisible = expanded
-        }
-
-        private fun bindAttachmentsIfNeeded(attachments: List<AIAssistantToolItem>) {
-            val nextSignature = attachmentSignature(attachments)
-            if (nextSignature == lastAttachmentSignature) {
-                return
-            }
-            lastAttachmentSignature = nextSignature
-            attachmentAdapter.replaceAll(attachments)
-        }
-
-        private fun resolveAttachmentUiState(item: AIAssistantStreamingResponseItem): StreamAttachmentUiState {
-            val signature = attachmentSectionSignature(item)
-            val existingState = streamAttachmentUiStates[item.id]
-            val nextState = when {
-                existingState == null -> StreamAttachmentUiState(
-                    expanded = defaultAttachmentSectionExpanded(item),
-                    userToggled = false,
-                    signature = signature
-                )
-                existingState.userToggled -> existingState.copy(signature = signature)
-                existingState.signature != signature -> existingState.copy(
-                    expanded = defaultAttachmentSectionExpanded(item),
-                    signature = signature
-                )
-                else -> existingState
-            }
-            streamAttachmentUiStates[item.id] = nextState
-            return nextState
-        }
-
-        fun recycle() {
-            AIAssistantRichTextRenderer.cancel(body)
-            body.text = ""
-            attachmentAdapter.replaceAll(emptyList())
-            lastAttachmentSignature = null
-            boundItem = null
-            body.tag = null
-        }
-
-        fun detach() {
-            AIAssistantRichTextRenderer.cancel(body)
-        }
-    }
-
     private class StatusViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val card = itemView.findViewById<MaterialCardView>(R.id.statusCard)
         private val title = itemView.findViewById<TextView>(R.id.statusTitle)
@@ -395,7 +274,7 @@ class AIAssistantTimelineAdapter(
                 AIAssistantTone.ERROR -> com.google.android.material.R.attr.colorErrorContainer to com.google.android.material.R.attr.colorOnErrorContainer
                 AIAssistantTone.NEUTRAL -> com.google.android.material.R.attr.colorSurfaceContainerHighest to com.google.android.material.R.attr.colorOnSurface
             }
-            applyCardTone(card, itemView, containerAttr, textAttr, title, body)
+            AIAssistantTimelineCardTone.apply(card, itemView, containerAttr, textAttr, title, body)
             AIAssistantRichTextRenderer.render(body, item.body.orEmpty(), messageId = item.id)
             body.isVisible = !item.body.isNullOrBlank()
         }
@@ -444,7 +323,6 @@ class AIAssistantTimelineAdapter(
         private const val VIEW_TYPE_DIFF = 4
         private const val VIEW_TYPE_STREAMING_RESPONSE = 5
         private const val VIEW_TYPE_SESSION_BROWSER = 6
-        private val toolAttachmentViewPool = RecyclerView.RecycledViewPool()
         private val TimelineDiffCallback = object : DiffUtil.ItemCallback<AIAssistantTimelineItem>() {
             override fun areItemsTheSame(
                 oldItem: AIAssistantTimelineItem,
@@ -458,82 +336,6 @@ class AIAssistantTimelineAdapter(
                 newItem: AIAssistantTimelineItem
             ): Boolean {
                 return oldItem == newItem
-            }
-        }
-
-        private data class StreamAttachmentUiState(
-            val expanded: Boolean,
-            val userToggled: Boolean,
-            val signature: String
-        )
-
-        private fun attachmentSignature(attachments: List<AIAssistantToolItem>): String {
-            if (attachments.isEmpty()) {
-                return ""
-            }
-            return buildString {
-                attachments.forEach { attachment ->
-                    append(attachment.id)
-                    append(':')
-                    append(attachment.stage.name)
-                    append(':')
-                    append(attachment.summary.hashCode())
-                    append(':')
-                    append(attachment.outputPreview.orEmpty().hashCode())
-                    append('|')
-                }
-            }
-        }
-
-        private fun attachmentSectionSignature(item: AIAssistantStreamingResponseItem): String {
-            return buildString {
-                append(attachmentSignature(item.attachments))
-                append('#')
-                append(item.response.isNotBlank())
-                append('#')
-                append(item.isStreaming)
-            }
-        }
-
-        private fun defaultAttachmentSectionExpanded(item: AIAssistantStreamingResponseItem): Boolean {
-            if (item.attachments.isEmpty()) {
-                return false
-            }
-            if (item.response.isNotBlank()) {
-                return false
-            }
-            return item.attachments.size == 1 && item.attachments.lastOrNull()?.isLive == true
-        }
-
-        private fun buildAttachmentPreviewText(
-            attachments: List<AIAssistantToolItem>,
-            expanded: Boolean
-        ): String {
-            val latest = attachments.lastOrNull() ?: return ""
-            val latestSummary = listOfNotNull(
-                latest.stage.label,
-                latest.title.takeIf { it.isNotBlank() },
-                latest.summary.takeIf { it.isNotBlank() }
-            ).joinToString(" · ").trim()
-            return if (expanded) {
-                "Latest: $latestSummary"
-            } else {
-                latestSummary
-            }
-        }
-
-        private fun applyCardTone(
-            card: MaterialCardView,
-            root: View,
-            @AttrRes containerAttr: Int,
-            @AttrRes textAttr: Int,
-            vararg textViews: TextView
-        ) {
-            val background = MaterialColors.getColor(root, containerAttr, 0)
-            val textColor = MaterialColors.getColor(root, textAttr, 0)
-            card.setCardBackgroundColor(background)
-            textViews.forEach { textView ->
-                textView.setTextColor(textColor)
             }
         }
     }

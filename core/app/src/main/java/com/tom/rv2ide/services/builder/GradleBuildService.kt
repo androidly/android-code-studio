@@ -127,6 +127,8 @@ class GradleBuildService :
     private val log = LoggerFactory.getLogger(GradleBuildService::class.java)
     private val NOTIFICATION_ID = R.string.app_name
     private val SERVER_System_err = LoggerFactory.getLogger("ToolingApiErrorStream")
+    private const val IDE_GRADLE_DAEMON_IDLE_TIMEOUT_MS = 20 * 60 * 1000
+    private const val IDE_KOTLIN_DAEMON_IDLE_TIMEOUT_SECONDS = 20 * 60
   }
 
   override fun onCreate() {
@@ -387,6 +389,7 @@ class GradleBuildService :
     }
 
     // Override AAPT2 binary
+    ToolsManager.ensureAapt2Available()
     extraArgs.add("-Pandroid.aapt2FromMavenOverride=" + Environment.AAPT2.absolutePath)
     extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
 
@@ -412,6 +415,11 @@ class GradleBuildService :
     if (BuildPreferences.isOfflineEnabled) {
       extraArgs.add("--offline")
     }
+
+    extraArgs.add("-Dorg.gradle.daemon.idletimeout=$IDE_GRADLE_DAEMON_IDLE_TIMEOUT_MS")
+    extraArgs.add(
+        "-Dkotlin.daemon.jvm.options=autoshutdownIdleSeconds=$IDE_KOTLIN_DAEMON_IDLE_TIMEOUT_SECONDS,shutdownDelayMilliseconds=1000"
+    )
 
     return CompletableFuture.completedFuture(extraArgs)
   }
@@ -450,8 +458,10 @@ class GradleBuildService :
     }
     try {
       val projectDir = ProjectManagerImpl.getInstance().projectDir
+      com.tom.rv2ide.templates.normalizeProjectGradleWrapper(projectDir)
       val files = ZipUtils.unzipFile(extracted, projectDir)
       if (files != null && files.isNotEmpty()) {
+        com.tom.rv2ide.templates.normalizeProjectGradleWrapper(projectDir)
         return GradleWrapperCheckResult(true)
       }
     } catch (e: IOException) {
@@ -504,6 +514,7 @@ class GradleBuildService :
     return CompletableFuture.runAsync {
       try {
         val projectDir = ProjectManagerImpl.getInstance().projectDir
+        com.tom.rv2ide.templates.normalizeProjectGradleWrapper(projectDir)
         val gradlewPath = File(projectDir, "gradlew").absolutePath
         
         log.info("Stopping Gradle daemons...")
@@ -565,6 +576,7 @@ class GradleBuildService :
 
           try {
             val projectDir = ProjectManagerImpl.getInstance().projectDir
+            com.tom.rv2ide.templates.normalizeProjectGradleWrapper(projectDir)
             val gradlewPath = File(projectDir, "gradlew").absolutePath
 
             val command = mutableListOf("sh", gradlewPath)

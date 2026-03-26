@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="git_menu_changes">更改</string>
+
+  <string name="git_settings_user_configuration">Git 用户配置</string>
+  <string name="git_settings_name_label">名称:</string>
+  <string name="git_settings_email_label">邮箱:</string>
+  <string name="git_settings_edit_user_config">编辑用户配置</string>
+  <string name="git_settings_credentials_title">凭据</string>
+  <string name="git_settings_remember_credentials">记住凭据</string>
+  <string name="git_settings_remember_credentials_summary">为推送和拉取保存用户名和密码</string>
+  <string name="git_settings_status_label">状态:</string>
+  <string name="git_settings_status_saved">已保存</string>
+  <string name="git_settings_status_not_saved">未保存</string>
+  <string name="git_settings_clear_saved_credentials">清除已保存的凭据</string>
+  <string name="git_settings_clear_action">清除</string>
+  <string name="git_settings_clear_credentials_title">清除凭据</string>
+  <string name="git_settings_clear_credentials_message">确定要清除已保存的凭据吗？</string>
+  <string name="git_settings_credentials_cleared">凭据已清除</string>
+  <string name="git_settings_user_config_title">Git 用户配置</string>
+  <string name="git_settings_user_config_updated">用户配置已更新</string>
+  <string name="git_settings_user_config_required">名称和邮箱不能为空</string>
+  <string name="git_user_name_hint">用户名</string>
+  <string name="git_user_email_hint">用户邮箱</string>
+  <string name="common_save">保存</string>
+
+  <string name="git_changes_stage_all">全部暂存</string>
+  <string name="git_changes_refresh">刷新</string>
+  <string name="git_changes_commit">提交</string>
+  <string name="git_changes_empty_state">未检测到更改</string>
+  <string name="git_changes_commit_title">提交更改</string>
+  <string name="git_changes_commit_hint">提交信息</string>
+  <string name="git_changes_commit_message_required">提交信息不能为空</string>
+  <string name="git_changes_discard_title">放弃更改</string>
+  <string name="git_changes_discard_message">确定要放弃 %1$s 中的更改吗？此操作无法撤销。</string>
+  <string name="git_changes_discard_action">放弃</string>
+
+  <string name="git_branches_current_format">当前: %1$s</string>
+  <string name="git_branches_current_placeholder">当前: -</string>
+  <string name="git_branches_new_branch">新建分支</string>
+  <string name="git_branches_checkout_action">切换</string>
+  <string name="git_branches_create_title">创建新分支</string>
+  <string name="git_branches_name_hint">分支名称</string>
+  <string name="git_branches_name_required">分支名称不能为空</string>
+  <string name="git_branches_delete_title">删除分支</string>
+  <string name="git_branches_delete_message">确定要删除分支“%1$s”吗？</string>
+  <string name="git_branches_delete_current_error">无法删除当前分支</string>
+  <string name="git_branches_create_action">创建</string>
+  <string name="git_item_branch_name_preview">main</string>
+  <string name="git_item_commit_message_preview">初始提交</string>
+  <string name="git_item_commit_hash_preview">a1b2c3d</string>
+  <string name="git_item_commit_date_preview">2024 年 1 月 1 日 12:00</string>
+  <string name="git_item_commit_author_preview">作者名称</string>
+  <string name="git_item_change_type_preview">M</string>
+  <string name="git_item_change_name_preview">file.txt</string>
+  <string name="git_changes_stage_action">暂存</string>
+  <string name="git_changes_unstage_action">取消暂存</string>
+  <string name="git_item_remote_name_preview">origin</string>
+  <string name="git_item_remote_url_preview">https://github.com/user/repo.git</string>
+
+  <string name="git_remotes_title">远程操作</string>
+  <string name="git_remotes_empty_state">未配置远程仓库\n添加远程仓库后即可推送或拉取更改</string>
+  <string name="git_remotes_add_remote">添加远程仓库</string>
+  <string name="git_remote_name_hint">远程名称（例如 origin）</string>
+  <string name="git_remote_url_hint">远程 URL</string>
+  <string name="git_remote_add_title">添加远程仓库</string>
+  <string name="git_remote_add_action">添加</string>
+  <string name="git_remote_invalid_input_title">输入无效</string>
+  <string name="git_remote_invalid_input_message">名称和 URL 不能为空</string>
+  <string name="git_no_remotes_title">没有远程仓库</string>
+  <string name="git_no_remotes_message">未配置远程仓库。请先添加一个远程仓库。</string>
+  <string name="git_operation_failed_title">操作失败</string>
+  <string name="git_operation_failed_title_format">%1$s失败</string>
+  <string name="git_push_title">推送到远程仓库</string>
+  <string name="git_push_message">将你的提交推送到 %1$s</string>
+  <string name="git_push_action">推送</string>
+  <string name="git_pull_title">从远程仓库拉取</string>
+  <string name="git_pull_message">从 %1$s 拉取更改</string>
+  <string name="git_pull_action">拉取</string>
+  <string name="git_fetch_title">从远程仓库获取</string>
+  <string name="git_fetch_message">从 %1$s 获取更改</string>
+  <string name="git_fetch_action">获取</string>
+  <string name="git_without_credentials">不使用凭据</string>
+  <string name="git_remove_remote_title">移除远程仓库</string>
+  <string name="git_remove_remote_message">确定要移除远程仓库“%1$s”吗？</string>
+  <string name="git_remove_remote_action">移除</string>
+  <string name="git_credentials_optional">凭据（可选）</string>
+  <string name="git_username_hint">用户名</string>
+  <string name="git_password_hint">密码</string>
+  <string name="git_password_token_hint">密码/令牌</string>
+  <string name="git_clone_option_shallow">浅克隆（更快）</string>
+  <string name="git_clone_option_single_branch">仅克隆当前分支</string>
+  <string name="git_clone_option_recursive">连同子模块一起克隆</string>
+  <string name="git_clone_option_no_tags">不获取标签</string>
+  <string name="git_clone_option_bare">创建裸仓库</string>
+
+  <string name="file_browser_go_to_my_project">转到我的项目</string>
+  <string name="file_browser_item_icon_content_description">文件图标</string>
+  <string name="file_browser_item_name_preview">文件名</string>
+  <string name="file_browser_search_action">搜索</string>
+  <string name="file_browser_search_hint">搜索文件...</string>
+  <string name="file_browser_filter">筛选</string>
+  <string name="file_browser_show_all">显示全部</string>
+  <string name="file_browser_folders_only">仅文件夹</string>
+  <string name="file_browser_files_only">仅文件</string>
+  <string name="file_browser_filter_by_extension">按扩展名筛选</string>
+  <string name="file_browser_all_files">所有文件</string>
+  <string name="file_browser_xml_files">XML 文件 (.xml)</string>
+  <string name="file_browser_text_files">文本文件 (.txt)</string>
+  <string name="file_browser_pdf_files">PDF 文件 (.pdf)</string>
+  <string name="file_browser_image_files">图片 (.jpg, .png, .gif)</string>
+  <string name="file_browser_video_files">视频 (.mp4, .mkv, .avi)</string>
+  <string name="file_browser_audio_files">音频 (.mp3, .wav, .m4a)</string>
+  <string name="file_browser_apk_files">APK 文件 (.apk)</string>
+  <string name="file_browser_archive_files">压缩包 (.zip, .rar, .7z)</string>
+  <string name="file_browser_custom_extension">自定义扩展名...</string>
+  <string name="file_browser_custom_extension_hint">例如：json、kt、java</string>
+  <string name="file_browser_custom_extension_title">输入自定义扩展名</string>
+  <string name="file_browser_custom_extension_message">请输入不带点号的文件扩展名</string>
+  <string name="file_browser_apply">应用</string>
+  <string name="file_browser_no_matches">没有文件匹配当前筛选条件</string>
+  <string name="file_browser_clicked_file">点击了文件：%1$s</string>
+  <string name="file_browser_rename_title">重命名</string>
+  <string name="file_browser_rename_message">请输入 %1$s 的新名称</string>
+  <string name="file_browser_name_empty">名称不能为空</string>
+  <string name="file_browser_name_exists">已存在同名文件</string>
+  <string name="file_browser_renamed_success">重命名成功</string>
+  <string name="file_browser_rename_failed">重命名失败</string>
+  <string name="file_browser_clipboard_label">文件路径</string>
+  <string name="file_browser_path_copied">路径已复制到剪贴板</string>
+  <string name="file_browser_copy_to">复制到</string>
+  <string name="file_browser_move_to">移动到</string>
+  <string name="file_browser_copy_full_path">复制完整路径</string>
+  <string name="file_browser_delete_action">删除</string>
+  <string name="file_browser_delete_title_format">删除%1$s</string>
+  <string name="file_browser_delete_folder_type">文件夹</string>
+  <string name="file_browser_delete_file_type">文件</string>
+  <string name="file_browser_delete_folder_message">确定要删除此文件夹及其所有内容吗？\n\n%1$s</string>
+  <string name="file_browser_delete_file_message">确定要删除此文件吗？\n\n%1$s</string>
+  <string name="file_browser_deleted_success">删除成功</string>
+  <string name="file_browser_delete_failed">删除失败</string>
+  <string name="file_browser_cannot_access">无法访问此文件夹</string>
+  <string name="file_browser_select_destination">选择目标位置</string>
+  <string name="file_browser_select_destination_copy">选择目标位置（复制）</string>
+  <string name="file_browser_select_destination_move">选择目标位置（移动）</string>
+  <string name="file_browser_select_folder_to_paste">请选择要粘贴到的文件夹</string>
+  <string name="file_browser_paste_here">粘贴到这里</string>
+  <string name="file_browser_move_here">移动到这里</string>
+  <string name="file_browser_source_missing">源文件不存在</string>
+  <string name="file_browser_destination_exists">目标位置已存在同名文件</string>
+  <string name="file_browser_same_source_destination">源位置和目标位置相同</string>
+  <string name="file_browser_cannot_move_into_itself">无法将文件夹移动到其自身内部</string>
+  <string name="file_browser_moving">正在将 %1$s 移动到 %2$s...</string>
+  <string name="file_browser_copying">正在将 %1$s 复制到 %2$s...</string>
+  <string name="file_browser_move_success">文件移动成功！</string>
+  <string name="file_browser_move_failed">移动失败：%1$s</string>
+  <string name="file_browser_copy_success">文件复制成功！</string>
+  <string name="file_browser_copy_failed">复制失败：%1$s</string>
+  <string name="file_browser_directory_missing">目录不存在：%1$s</string>
+  <string name="file_browser_directory_unreadable">无法读取目录：%1$s</string>
+
+  <string name="main_git_option_shallow_clone">浅克隆（更快）</string>
+  <string name="main_git_option_single_branch">仅克隆单个分支</string>
+  <string name="main_git_option_recursive">连同子模块一起克隆</string>
+  <string name="main_git_option_no_tags">不获取标签</string>
+  <string name="main_git_option_bare">创建裸仓库</string>
+
+  <string name="main_project_option_backup">备份项目</string>
+  <string name="main_project_backup_progress_message">正在备份项目...</string>
+  <string name="main_project_backup_in_progress_title">正在备份</string>
+  <string name="main_project_backup_in_progress_message">正在创建 %1$s 的备份</string>
+  <string name="main_project_backup_completed_title">备份完成</string>
+  <string name="main_project_backup_completed_message">项目已成功备份！\n\n位置：\n%1$s</string>
+  <string name="main_project_backup_failed_title">备份失败</string>
+  <string name="main_project_backup_failed_message">备份项目失败：%1$s</string>
+  <string name="main_project_delete_progress_message">正在删除项目...</string>
+  <string name="main_project_delete_in_progress_title">正在删除</string>
+  <string name="main_project_delete_in_progress_message">正在删除 %1$s</string>
+
+  <string-array name="file_browser_actions">
+    <item>@string/file_browser_copy_to</item>
+    <item>@string/file_browser_move_to</item>
+    <item>@string/file_browser_rename_title</item>
+    <item>@string/file_browser_copy_full_path</item>
+    <item>@string/file_browser_delete_action</item>
+  </string-array>
+</resources>

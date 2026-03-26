@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="git_menu_changes">Changes</string>
+
+  <string name="git_settings_user_configuration">Git User Configuration</string>
+  <string name="git_settings_name_label">Name:</string>
+  <string name="git_settings_email_label">Email:</string>
+  <string name="git_settings_edit_user_config">Edit User Config</string>
+  <string name="git_settings_credentials_title">Credentials</string>
+  <string name="git_settings_remember_credentials">Remember credentials</string>
+  <string name="git_settings_remember_credentials_summary">Save username and password for push/pull</string>
+  <string name="git_settings_status_label">Status:</string>
+  <string name="git_settings_status_saved">Saved</string>
+  <string name="git_settings_status_not_saved">Not saved</string>
+  <string name="git_settings_clear_saved_credentials">Clear Saved Credentials</string>
+  <string name="git_settings_clear_action">Clear</string>
+  <string name="git_settings_clear_credentials_title">Clear Credentials</string>
+  <string name="git_settings_clear_credentials_message">Are you sure you want to clear saved credentials?</string>
+  <string name="git_settings_credentials_cleared">Credentials cleared</string>
+  <string name="git_settings_user_config_title">Git User Config</string>
+  <string name="git_settings_user_config_updated">User config updated</string>
+  <string name="git_settings_user_config_required">Name and email cannot be empty</string>
+  <string name="git_user_name_hint">User Name</string>
+  <string name="git_user_email_hint">User Email</string>
+  <string name="common_save">Save</string>
+
+  <string name="git_changes_stage_all">Stage All</string>
+  <string name="git_changes_refresh">Refresh</string>
+  <string name="git_changes_commit">Commit</string>
+  <string name="git_changes_empty_state">No changes detected</string>
+  <string name="git_changes_commit_title">Commit Changes</string>
+  <string name="git_changes_commit_hint">Commit message</string>
+  <string name="git_changes_commit_message_required">Commit message cannot be empty</string>
+  <string name="git_changes_discard_title">Discard Changes</string>
+  <string name="git_changes_discard_message">Are you sure you want to discard changes in %1$s? This cannot be undone.</string>
+  <string name="git_changes_discard_action">Discard</string>
+
+  <string name="git_branches_current_format">Current: %1$s</string>
+  <string name="git_branches_current_placeholder">Current: -</string>
+  <string name="git_branches_new_branch">New Branch</string>
+  <string name="git_branches_checkout_action">Checkout</string>
+  <string name="git_branches_create_title">Create New Branch</string>
+  <string name="git_branches_name_hint">Branch name</string>
+  <string name="git_branches_name_required">Branch name cannot be empty</string>
+  <string name="git_branches_delete_title">Delete Branch</string>
+  <string name="git_branches_delete_message">Are you sure you want to delete branch \'%1$s\'?</string>
+  <string name="git_branches_delete_current_error">Cannot delete current branch</string>
+  <string name="git_branches_create_action">Create</string>
+  <string name="git_item_branch_name_preview">main</string>
+  <string name="git_item_commit_message_preview">Initial commit</string>
+  <string name="git_item_commit_hash_preview">a1b2c3d</string>
+  <string name="git_item_commit_date_preview">Jan 01, 2024 12:00</string>
+  <string name="git_item_commit_author_preview">Author Name</string>
+  <string name="git_item_change_type_preview">M</string>
+  <string name="git_item_change_name_preview">file.txt</string>
+  <string name="git_changes_stage_action">Stage</string>
+  <string name="git_changes_unstage_action">Unstage</string>
+  <string name="git_item_remote_name_preview">origin</string>
+  <string name="git_item_remote_url_preview">https://github.com/user/repo.git</string>
+
+  <string name="git_remotes_title">Remote Operations</string>
+  <string name="git_remotes_empty_state">No remotes configured\nAdd a remote to push/pull changes</string>
+  <string name="git_remotes_add_remote">Add Remote</string>
+  <string name="git_remote_name_hint">Remote name (e.g., origin)</string>
+  <string name="git_remote_url_hint">Remote URL</string>
+  <string name="git_remote_add_title">Add Remote</string>
+  <string name="git_remote_add_action">Add</string>
+  <string name="git_remote_invalid_input_title">Invalid Input</string>
+  <string name="git_remote_invalid_input_message">Name and URL cannot be empty</string>
+  <string name="git_no_remotes_title">No Remotes</string>
+  <string name="git_no_remotes_message">No remotes configured. Add a remote first.</string>
+  <string name="git_operation_failed_title">Operation Failed</string>
+  <string name="git_operation_failed_title_format">%1$s Failed</string>
+  <string name="git_push_title">Push to Remote</string>
+  <string name="git_push_message">Push your commits to %1$s</string>
+  <string name="git_push_action">Push</string>
+  <string name="git_pull_title">Pull from Remote</string>
+  <string name="git_pull_message">Pull changes from %1$s</string>
+  <string name="git_pull_action">Pull</string>
+  <string name="git_fetch_title">Fetch from Remote</string>
+  <string name="git_fetch_message">Fetch changes from %1$s</string>
+  <string name="git_fetch_action">Fetch</string>
+  <string name="git_without_credentials">Without credentials</string>
+  <string name="git_remove_remote_title">Remove Remote</string>
+  <string name="git_remove_remote_message">Are you sure you want to remove remote \'%1$s\'?</string>
+  <string name="git_remove_remote_action">Remove</string>
+  <string name="git_credentials_optional">Credentials (Optional)</string>
+  <string name="git_username_hint">Username</string>
+  <string name="git_password_hint">Password</string>
+  <string name="git_password_token_hint">Password/Token</string>
+  <string name="git_clone_option_shallow">Shallow clone (faster)</string>
+  <string name="git_clone_option_single_branch">Clone single branch only</string>
+  <string name="git_clone_option_recursive">Clone with submodules</string>
+  <string name="git_clone_option_no_tags">Don\'t fetch tags</string>
+  <string name="git_clone_option_bare">Create bare repository</string>
+
+  <string name="file_browser_go_to_my_project">Go to My Project</string>
+  <string name="file_browser_item_icon_content_description">File icon</string>
+  <string name="file_browser_item_name_preview">File Name</string>
+  <string name="file_browser_search_action">Search</string>
+  <string name="file_browser_search_hint">Search files...</string>
+  <string name="file_browser_filter">Filter</string>
+  <string name="file_browser_show_all">Show All</string>
+  <string name="file_browser_folders_only">Folders Only</string>
+  <string name="file_browser_files_only">Files Only</string>
+  <string name="file_browser_filter_by_extension">Filter by Extension</string>
+  <string name="file_browser_all_files">All Files</string>
+  <string name="file_browser_xml_files">XML Files (.xml)</string>
+  <string name="file_browser_text_files">Text Files (.txt)</string>
+  <string name="file_browser_pdf_files">PDF Files (.pdf)</string>
+  <string name="file_browser_image_files">Images (.jpg, .png, .gif)</string>
+  <string name="file_browser_video_files">Videos (.mp4, .mkv, .avi)</string>
+  <string name="file_browser_audio_files">Audio (.mp3, .wav, .m4a)</string>
+  <string name="file_browser_apk_files">APK Files (.apk)</string>
+  <string name="file_browser_archive_files">Archives (.zip, .rar, .7z)</string>
+  <string name="file_browser_custom_extension">Custom Extension...</string>
+  <string name="file_browser_custom_extension_hint">e.g., json, kt, java</string>
+  <string name="file_browser_custom_extension_title">Enter Custom Extension</string>
+  <string name="file_browser_custom_extension_message">Enter file extension without the dot</string>
+  <string name="file_browser_apply">Apply</string>
+  <string name="file_browser_no_matches">No files match the filters</string>
+  <string name="file_browser_clicked_file">Clicked on file: %1$s</string>
+  <string name="file_browser_rename_title">Rename</string>
+  <string name="file_browser_rename_message">Enter new name for %1$s</string>
+  <string name="file_browser_name_empty">Name cannot be empty</string>
+  <string name="file_browser_name_exists">A file with this name already exists</string>
+  <string name="file_browser_renamed_success">Renamed successfully</string>
+  <string name="file_browser_rename_failed">Failed to rename</string>
+  <string name="file_browser_clipboard_label">File Path</string>
+  <string name="file_browser_path_copied">Path copied to clipboard</string>
+  <string name="file_browser_copy_to">Copy to</string>
+  <string name="file_browser_move_to">Move to</string>
+  <string name="file_browser_copy_full_path">Copy full path</string>
+  <string name="file_browser_delete_action">Delete</string>
+  <string name="file_browser_delete_title_format">Delete %1$s</string>
+  <string name="file_browser_delete_folder_type">folder</string>
+  <string name="file_browser_delete_file_type">file</string>
+  <string name="file_browser_delete_folder_message">Are you sure you want to delete this folder and all its contents?\n\n%1$s</string>
+  <string name="file_browser_delete_file_message">Are you sure you want to delete this file?\n\n%1$s</string>
+  <string name="file_browser_deleted_success">Deleted successfully</string>
+  <string name="file_browser_delete_failed">Failed to delete</string>
+  <string name="file_browser_cannot_access">Cannot access this folder</string>
+  <string name="file_browser_select_destination">Select Destination</string>
+  <string name="file_browser_select_destination_copy">Select Destination (Copy)</string>
+  <string name="file_browser_select_destination_move">Select Destination (Move)</string>
+  <string name="file_browser_select_folder_to_paste">Please select a folder to paste into</string>
+  <string name="file_browser_paste_here">Paste Here</string>
+  <string name="file_browser_move_here">Move Here</string>
+  <string name="file_browser_source_missing">Source file doesn\'t exist</string>
+  <string name="file_browser_destination_exists">File already exists in destination</string>
+  <string name="file_browser_same_source_destination">Source and destination are the same</string>
+  <string name="file_browser_cannot_move_into_itself">Cannot move a folder into itself</string>
+  <string name="file_browser_moving">Moving %1$s to %2$s...</string>
+  <string name="file_browser_copying">Copying %1$s to %2$s...</string>
+  <string name="file_browser_move_success">File moved successfully!</string>
+  <string name="file_browser_move_failed">Failed to move: %1$s</string>
+  <string name="file_browser_copy_success">File copied successfully!</string>
+  <string name="file_browser_copy_failed">Failed to copy: %1$s</string>
+  <string name="file_browser_directory_missing">Directory doesn\'t exist: %1$s</string>
+  <string name="file_browser_directory_unreadable">Cannot read directory: %1$s</string>
+
+  <string name="main_git_option_shallow_clone">Shallow clone (faster)</string>
+  <string name="main_git_option_single_branch">Clone single branch only</string>
+  <string name="main_git_option_recursive">Clone with submodules</string>
+  <string name="main_git_option_no_tags">Don\'t fetch tags</string>
+  <string name="main_git_option_bare">Create bare repository</string>
+
+  <string name="main_project_option_backup">Backup project</string>
+  <string name="main_project_backup_progress_message">Backing up project...</string>
+  <string name="main_project_backup_in_progress_title">Backup in Progress</string>
+  <string name="main_project_backup_in_progress_message">Creating backup of %1$s</string>
+  <string name="main_project_backup_completed_title">Backup Completed</string>
+  <string name="main_project_backup_completed_message">Project backed up successfully!\n\nLocation:\n%1$s</string>
+  <string name="main_project_backup_failed_title">Backup Failed</string>
+  <string name="main_project_backup_failed_message">Failed to back up project: %1$s</string>
+  <string name="main_project_delete_progress_message">Deleting project...</string>
+  <string name="main_project_delete_in_progress_title">Delete in Progress</string>
+  <string name="main_project_delete_in_progress_message">Deleting %1$s</string>
+
+  <string-array name="file_browser_actions">
+    <item>@string/file_browser_copy_to</item>
+    <item>@string/file_browser_move_to</item>
+    <item>@string/file_browser_rename_title</item>
+    <item>@string/file_browser_copy_full_path</item>
+    <item>@string/file_browser_delete_action</item>
+  </string-array>
+</resources>

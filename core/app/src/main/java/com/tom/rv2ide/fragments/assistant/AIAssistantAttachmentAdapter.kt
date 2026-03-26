@@ -86,7 +86,7 @@ class AIAssistantAttachmentAdapter :
             } else {
                 item.outputPreview.orEmpty()
             }
-            stageTrail.isVisible = item.stageTrail.isNotBlank()
+            stageTrail.isVisible = false
             commandLabel.isVisible = !item.command.isNullOrBlank()
             command.isVisible = !item.command.isNullOrBlank()
             workingDirectory.isVisible = !item.workingDirectory.isNullOrBlank()

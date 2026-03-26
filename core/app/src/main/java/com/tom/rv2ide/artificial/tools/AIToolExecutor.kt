@@ -20,6 +20,7 @@ class AIToolExecutor(
     private val writeFile: (String, String) -> FileWriteResult,
     private val recordModification: (String, String?, String, Boolean) -> Unit
 ) {
+    private var projectModelRefreshSuggested = false
 
     companion object {
         private const val MAX_OUTPUT_CHARS = 12000
@@ -492,6 +493,9 @@ class AIToolExecutor(
         val writeResult = writeFile(file.absolutePath, newContent)
         val success = writeResult is FileWriteResult.Success
         recordModification(file.absolutePath, previousContent, newContent, success)
+        if (success) {
+            markProjectModelDirtyIfNeeded(file)
+        }
 
         return AIToolExecutionResult(
             toolName = toolCall.name,
@@ -582,9 +586,6 @@ class AIToolExecutor(
             if (args.none { it == "--console=plain" }) {
                 append(" --console=plain")
             }
-            if (args.none { it == "--no-daemon" }) {
-                append(" --no-daemon")
-            }
             args.forEach {
                 append(' ')
                 append(it)
@@ -592,8 +593,10 @@ class AIToolExecutor(
         }
 
         val execution = runCommand(command, projectRoot, BUILD_TIMEOUT_SECONDS, onOutputLine)
-        val refreshResult =
-            if (execution.exitCode == 0) {
+        val refreshResult = if (
+            execution.exitCode == 0 &&
+            shouldRefreshIdeProjectModelAfterBuild(tasks)
+        ) {
                 refreshIdeProjectModel(onOutputLine)
             } else {
                 null
@@ -732,6 +735,7 @@ class AIToolExecutor(
                     message = "Tooling sync failed: ${result.failure ?: "unknown failure"}"
                 )
             } else {
+                projectModelRefreshSuggested = false
                 ProjectModelRefreshResult(
                     success = true,
                     message = "Tooling sync succeeded and workspace/module state was rebuilt."
@@ -749,6 +753,37 @@ class AIToolExecutor(
         val success: Boolean,
         val message: String
     )
+
+    private fun shouldRefreshIdeProjectModelAfterBuild(tasks: List<String>): Boolean {
+        return projectModelRefreshSuggested || tasks.any(::isExplicitModelRefreshTask)
+    }
+
+    private fun isExplicitModelRefreshTask(task: String): Boolean {
+        val normalized = task.substringAfterLast(':').trim().lowercase()
+        return normalized.contains("sync") ||
+            normalized.contains("preparekotlinbuildscriptmodel") ||
+            normalized == "projects" ||
+            normalized == "components"
+    }
+
+    private fun markProjectModelDirtyIfNeeded(file: File) {
+        if (isProjectModelAffectingFile(file)) {
+            projectModelRefreshSuggested = true
+        }
+    }
+
+    private fun isProjectModelAffectingFile(file: File): Boolean {
+        val normalizedPath = file.path.replace('\\', '/').lowercase()
+        val normalizedName = file.name.lowercase()
+        return normalizedName == "settings.gradle" ||
+            normalizedName == "settings.gradle.kts" ||
+            normalizedName == "build.gradle" ||
+            normalizedName == "build.gradle.kts" ||
+            normalizedName == "gradle.properties" ||
+            normalizedName == "gradle-wrapper.properties" ||
+            normalizedPath.endsWith("/gradle/libs.versions.toml") ||
+            normalizedPath.contains("/buildsrc/")
+    }
 
     private fun prepareTerminalCommand(
         toolCall: AIToolCall,

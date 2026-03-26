@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="template_name_no_activity">无 Activity</string>
+  <string name="template_name_basic_activity">基础 Activity</string>
+  <string name="template_name_empty_activity">空白 Activity</string>
+  <string name="template_name_compose_activity">Compose Activity</string>
+  <string name="template_name_bottom_navigation">底部导航</string>
+  <string name="template_name_navigation_drawer">导航抽屉</string>
+  <string name="template_name_responsive_activity">响应式 Activity</string>
+  <string name="template_name_game_activity">游戏 Activity</string>
+  <string name="template_name_native_cpp">Native C++</string>
+  <string name="template_creation_in_progress">正在创建%1$s...</string>
+  <string name="wizard_native_language_cpp" translatable="false">C++</string>
+  <string name="wizard_native_language_c" translatable="false">C</string>
+</resources>

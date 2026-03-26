@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="template_name_no_activity">No Activity</string>
+  <string name="template_name_basic_activity">Basic Activity</string>
+  <string name="template_name_empty_activity">Empty Activity</string>
+  <string name="template_name_compose_activity">Compose Activity</string>
+  <string name="template_name_bottom_navigation">Bottom Navigation</string>
+  <string name="template_name_navigation_drawer">Navigation Drawer</string>
+  <string name="template_name_responsive_activity">Responsive Activity</string>
+  <string name="template_name_game_activity">Game Activity</string>
+  <string name="template_name_native_cpp">Native C++</string>
+  <string name="template_creation_in_progress">Creating %1$s...</string>
+  <string name="wizard_native_language_cpp" translatable="false">C++</string>
+  <string name="wizard_native_language_c" translatable="false">C</string>
+</resources>
