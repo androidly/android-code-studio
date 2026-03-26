@@ -19,8 +19,16 @@ internal interface AIAssistantStreamingTurnHost {
     fun markTimelineItemDirty(itemId: Long)
     fun timelineItemsSnapshot(): List<AIAssistantTimelineItem>
     fun publishState()
-    fun publishStateThrottled(persistTimeline: Boolean = true)
+    fun publishStateThrottled(
+        persistTimeline: Boolean = true,
+        intervalMs: Long = DEFAULT_THROTTLE_INTERVAL_MS
+    )
     fun isExecutionActive(): Boolean
+
+    companion object {
+        const val DEFAULT_THROTTLE_INTERVAL_MS = 120L
+        const val STREAMING_TEXT_THROTTLE_INTERVAL_MS = 24L
+    }
 }
 
 internal class AIAssistantStreamingTurnController(
@@ -92,7 +100,10 @@ internal class AIAssistantStreamingTurnController(
         activeStreamResponseBuffer.append(delta)
         trimAssistantResponseBuffer(activeStreamResponseBuffer)
         activeStreamResponseDirty = true
-        host.publishStateThrottled(persistTimeline = false)
+        host.publishStateThrottled(
+            persistTimeline = false,
+            intervalMs = AIAssistantStreamingTurnHost.STREAMING_TEXT_THROTTLE_INTERVAL_MS
+        )
     }
 
     fun replaceAssistantResponse(fullResponse: String) {
@@ -105,7 +116,10 @@ internal class AIAssistantStreamingTurnController(
         activeStreamResponseBuffer.setLength(0)
         activeStreamResponseBuffer.append(trimAssistantResponseText(fullResponse))
         activeStreamResponseDirty = true
-        host.publishStateThrottled(persistTimeline = false)
+        host.publishStateThrottled(
+            persistTimeline = false,
+            intervalMs = AIAssistantStreamingTurnHost.STREAMING_TEXT_THROTTLE_INTERVAL_MS
+        )
     }
 
     fun completeAssistantStream(finalResponse: String?, fallbackText: String?) {

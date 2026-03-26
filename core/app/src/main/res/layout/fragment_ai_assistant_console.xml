@@ -9,82 +9,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:paddingStart="8dp"
-        android:paddingTop="6dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="6dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:paddingStart="4dp"
-            android:paddingTop="2dp"
-            android:paddingEnd="4dp"
-            android:paddingBottom="6dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/ai_assistant"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/providerText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="?attr/colorSurfaceContainerHigh"
-                android:clickable="true"
-                android:focusable="true"
-                android:paddingStart="10dp"
-                android:paddingTop="5dp"
-                android:paddingEnd="10dp"
-                android:paddingBottom="5dp"
-                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
-                android:textColor="?attr/colorOnSurface" />
-
-            <TextView
-                android:id="@+id/modelText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="?attr/colorSecondaryContainer"
-                android:ellipsize="end"
-                android:maxWidth="160dp"
-                android:maxLines="1"
-                android:paddingStart="10dp"
-                android:paddingTop="5dp"
-                android:paddingEnd="10dp"
-                android:paddingBottom="5dp"
-                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
-                android:textColor="?attr/colorOnSecondaryContainer" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/engineButton"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:minWidth="0dp"
-                android:text="@string/ai_assistant_console_configure"
-                android:textAllCaps="false"
-                app:icon="@drawable/ic_settings" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/sessionText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="4dp"
-            android:fontFamily="monospace"
-            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-            android:textColor="?attr/colorOutline"
-            android:visibility="gone" />
+        android:paddingStart="4dp"
+        android:paddingTop="0dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="2dp">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/timelineRecyclerView"
@@ -93,8 +21,8 @@
             android:layout_weight="1"
             android:clipToPadding="false"
             android:fadeScrollbars="false"
-            android:paddingTop="2dp"
-            android:paddingBottom="6dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="2dp"
             android:scrollbars="vertical"
             app:fastScrollEnabled="true"
             app:fastScrollHorizontalThumbDrawable="@drawable/ai_assistant_fastscroll_thumb_horizontal"
@@ -102,134 +30,221 @@
             app:fastScrollVerticalThumbDrawable="@drawable/ai_assistant_fastscroll_thumb_vertical"
             app:fastScrollVerticalTrackDrawable="@drawable/ai_assistant_fastscroll_track_vertical" />
 
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutlineVariant"
-            app:strokeWidth="1dp">
+            android:layout_marginTop="2dp"
+            android:orientation="vertical"
+            android:paddingStart="4dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="8dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="8dp"
-                android:paddingBottom="6dp">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <TextView
+                    android:id="@+id/providerText"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:gravity="bottom"
-                    android:orientation="horizontal">
+                    android:clickable="true"
+                    android:ellipsize="end"
+                    android:focusable="true"
+                    android:maxWidth="84dp"
+                    android:maxLines="1"
+                    android:paddingStart="2dp"
+                    android:paddingTop="2dp"
+                    android:paddingEnd="2dp"
+                    android:paddingBottom="2dp"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                    android:textColor="?attr/colorOutline" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/slashButton"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="38dp"
-                        android:layout_height="38dp"
-                        android:layout_marginEnd="6dp"
-                        android:minWidth="0dp"
-                        android:minHeight="38dp"
-                        android:padding="0dp"
-                        android:text="/"
-                        android:textAllCaps="false" />
+                <TextView
+                    android:id="@+id/modelText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:ellipsize="end"
+                    android:maxWidth="96dp"
+                    android:maxLines="1"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                    android:textColor="?attr/colorOutline" />
 
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/sessionText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:ellipsize="end"
+                    android:fontFamily="monospace"
+                    android:maxWidth="118dp"
+                    android:maxLines="1"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                    android:textColor="?attr/colorOutline"
+                    android:visibility="gone" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/engineButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:contentDescription="@string/ai_assistant_console_configure"
+                    android:insetLeft="0dp"
+                    android:insetTop="0dp"
+                    android:insetRight="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text=""
+                    android:textAllCaps="false"
+                    app:icon="@drawable/ic_settings"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/reviewButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:contentDescription="@string/ai_assistant_console_review"
+                    android:insetLeft="0dp"
+                    android:insetTop="0dp"
+                    android:insetRight="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text=""
+                    android:textAllCaps="false"
+                    app:icon="@drawable/ic_search"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/clearButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:contentDescription="@string/ai_assistant_console_clear"
+                    android:insetLeft="0dp"
+                    android:insetTop="0dp"
+                    android:insetRight="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text=""
+                    android:textAllCaps="false"
+                    app:icon="@drawable/ic_delete"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/stopButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:contentDescription="@string/ai_assistant_console_stop"
+                    android:insetLeft="0dp"
+                    android:insetTop="0dp"
+                    android:insetRight="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text=""
+                    android:textAllCaps="false"
+                    app:icon="@drawable/ic_clear"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="bottom"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/slashButton"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_gravity="bottom"
+                    android:minWidth="0dp"
+                    android:minHeight="34dp"
+                    android:padding="0dp"
+                    android:text="/"
+                    android:textAllCaps="false" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    app:boxBackgroundMode="filled"
+                    app:boxCornerRadiusBottomEnd="18dp"
+                    app:boxCornerRadiusBottomStart="18dp"
+                    app:boxCornerRadiusTopEnd="18dp"
+                    app:boxCornerRadiusTopStart="18dp"
+                    app:boxStrokeWidth="0dp"
+                    app:hintEnabled="false">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/promptInput"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
+                        android:gravity="top|start"
                         android:hint="@string/ai_assistant_console_input_hint"
-                        app:boxBackgroundMode="none">
+                        android:inputType="textCapSentences|textMultiLine"
+                        android:maxLines="5"
+                        android:minLines="1"
+                        android:overScrollMode="ifContentScrolls"
+                        android:paddingTop="9dp"
+                        android:paddingBottom="9dp"
+                        android:scrollbars="vertical"
+                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
 
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/promptInput"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="top|start"
-                            android:inputType="textCapSentences|textMultiLine"
-                            android:maxLines="3"
-                            android:minLines="1"
-                            android:overScrollMode="ifContentScrolls"
-                            android:paddingTop="10dp"
-                            android:paddingBottom="10dp"
-                            android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
+                </com.google.android.material.textfield.TextInputLayout>
 
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/sendButton"
-                        style="@style/Widget.Material3.Button"
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:layout_marginStart="6dp"
-                        android:contentDescription="@string/ai_assistant_console_send_request"
-                        android:insetLeft="0dp"
-                        android:insetTop="0dp"
-                        android:insetRight="0dp"
-                        android:insetBottom="0dp"
-                        android:minWidth="0dp"
-                        android:minHeight="42dp"
-                        android:padding="0dp"
-                        android:text=""
-                        app:icon="@drawable/ic_send"
-                        app:iconGravity="textStart"
-                        app:iconPadding="0dp"
-                        app:iconSize="18dp" />
-
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="monospace"
-                        android:text="@string/ai_assistant_console_shortcuts"
-                        android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                        android:textColor="?attr/colorOutline" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/reviewButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:minWidth="0dp"
-                        android:text="@string/ai_assistant_console_review"
-                        android:textAllCaps="false" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/clearButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:minWidth="0dp"
-                        android:text="@string/ai_assistant_console_clear"
-                        android:textAllCaps="false" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/stopButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:minWidth="0dp"
-                        android:text="@string/ai_assistant_console_stop"
-                        android:textAllCaps="false" />
-
-                </LinearLayout>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/sendButton"
+                    style="@style/Widget.Material3.Button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_gravity="bottom"
+                    android:contentDescription="@string/ai_assistant_console_send_request"
+                    android:insetLeft="0dp"
+                    android:insetTop="0dp"
+                    android:insetRight="0dp"
+                    android:insetBottom="0dp"
+                    android:minWidth="0dp"
+                    android:minHeight="40dp"
+                    android:padding="0dp"
+                    android:text=""
+                    app:icon="@drawable/ic_send"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp" />
 
             </LinearLayout>
 
-        </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
 
     </LinearLayout>
 
@@ -240,7 +255,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="end|bottom"
         android:layout_marginEnd="20dp"
-        android:layout_marginBottom="98dp"
+        android:layout_marginBottom="78dp"
         android:minWidth="0dp"
         android:text="@string/ai_assistant_console_latest"
         android:textAllCaps="false"

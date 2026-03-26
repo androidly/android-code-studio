@@ -2,6 +2,7 @@ package com.tom.rv2ide.fragments.assistant
 
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
+import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.method.LinkMovementMethod
 import android.util.LruCache
@@ -84,7 +85,7 @@ object AIAssistantRichTextRenderer {
             return
         }
 
-        if (isStreaming) {
+        if (isStreaming && rawText.length > maxStreamingRichRenderedChars) {
             cancel(textView)
             textView.tag = renderKey
             textView.text = buildStreamingDisplayText(rawText)
@@ -103,7 +104,7 @@ object AIAssistantRichTextRenderer {
         cancel(textView)
         textView.tag = renderKey
 
-        val cacheRichRendering = rawText.length <= maxCacheableRichTextChars
+        val cacheRichRendering = !isStreaming && rawText.length <= maxCacheableRichTextChars
         val markwon = markwon(
             context = textView.context.applicationContext,
             textSizePx = textSizePx
@@ -122,7 +123,11 @@ object AIAssistantRichTextRenderer {
             return
         }
 
-        textView.text = rawText
+        textView.text = if (isStreaming) {
+            buildStreamingDisplayText(rawText)
+        } else {
+            rawText
+        }
         var job: Job? = null
         job = renderScope.launch {
             val markdown = if (cacheRichRendering) {
@@ -143,7 +148,14 @@ object AIAssistantRichTextRenderer {
                 null
             } ?: synchronized(markwon) {
                 markwon.toMarkdown(markdown)
-            }.also { spanned ->
+            }.let(AIAssistantLocalLinkSupport::rewriteLocalLinks)
+                .let { localizedSpanned ->
+                    if (localizedSpanned is SpannableStringBuilder) {
+                        SpannableStringBuilder(localizedSpanned)
+                    } else {
+                        localizedSpanned
+                    }
+                }.also { spanned ->
                 if (cacheRichRendering) {
                     synchronized(renderedMarkdownCache) {
                         renderedMarkdownCache.put(renderKey, spanned)
@@ -262,6 +274,8 @@ object AIAssistantRichTextRenderer {
             "$rawText\n\n▍"
         }
     }
+
+    private const val maxStreamingRichRenderedChars = 12_000
 }
 
 private object AIAssistantMarkdownFormatter {

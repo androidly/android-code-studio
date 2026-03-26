@@ -251,27 +251,31 @@ class AIAssistantConsoleFragment : Fragment() {
     private fun renderState(state: AIAssistantConsoleUiState) {
         latestUiState = state
         val providerId = Agents(requireContext()).getProvider()
-        providerText.text = when {
+        val providerLabel = when {
             providerId == "custom" -> providerDisplayName(providerId)
             state.providerLabel.isNotBlank() -> state.providerLabel
             else -> providerDisplayName(providerId)
         }
+        providerText.text = providerLabel
         modelText.text = state.modelLabel.ifBlank { getString(R.string.ai_assistant_preferences_not_set) }
+        modelText.isVisible = state.modelLabel.isNotBlank()
         sessionText.isVisible = state.sessionLabel.isNotBlank()
         sessionText.text = if (state.sessionLabel.isBlank()) {
             ""
         } else {
             buildString {
-                append("Session: ${state.sessionLabel}")
+                append(state.sessionLabel)
                 if (state.queuedPromptCount > 0) {
-                    append("  •  queued ${state.queuedPromptCount}")
+                    append(" · ${state.queuedPromptCount} queued")
                 }
             }
         }
-        engineButton.text = getString(R.string.ai_assistant_console_configure)
+        engineButton.text = ""
+        engineButton.contentDescription = getString(R.string.ai_assistant_console_configure)
         sendButton.isEnabled = true
         stopButton.isEnabled = state.isRunning
-        stopButton.text = if (state.isRunning && state.queuedPromptCount > 0) {
+        stopButton.text = ""
+        stopButton.contentDescription = if (state.isRunning && state.queuedPromptCount > 0) {
             "Stop (${state.queuedPromptCount})"
         } else {
             "Stop"

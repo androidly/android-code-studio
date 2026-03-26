@@ -93,8 +93,14 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
                     this@AIAssistantConsoleViewModel.publishState()
                 }
 
-                override fun publishStateThrottled(persistTimeline: Boolean) {
-                    this@AIAssistantConsoleViewModel.publishStateThrottled(persistTimeline)
+                override fun publishStateThrottled(
+                    persistTimeline: Boolean,
+                    intervalMs: Long
+                ) {
+                    this@AIAssistantConsoleViewModel.publishStateThrottled(
+                        persistTimeline = persistTimeline,
+                        intervalMs = intervalMs
+                    )
                 }
 
                 override fun isExecutionActive(): Boolean {
@@ -479,13 +485,16 @@ class AIAssistantConsoleViewModel(application: Application) : AndroidViewModel(a
         }
     }
 
-    private fun publishStateThrottled(persistTimeline: Boolean = true) {
+    private fun publishStateThrottled(
+        persistTimeline: Boolean = true,
+        intervalMs: Long = THROTTLED_STATE_PUBLISH_INTERVAL_MS
+    ) {
         throttledStateNeedsPersistence = throttledStateNeedsPersistence || persistTimeline
         if (throttledStatePublishJob?.isActive == true) {
             return
         }
         throttledStatePublishJob = viewModelScope.launch {
-            delay(THROTTLED_STATE_PUBLISH_INTERVAL_MS)
+            delay(intervalMs)
             val needsPersistence = throttledStateNeedsPersistence
             throttledStateNeedsPersistence = false
             throttledStatePublishJob = null
