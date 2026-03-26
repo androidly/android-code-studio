@@ -197,7 +197,7 @@ internal class AIAssistantStreamingTurnController(
             )
         )
         toolOutputBuffers[itemId] = StringBuilder()
-        updateAssistantWorkingStatus("Tool: ${buildToolTitle(toolCall.name)}")
+        updateAssistantWorkingStatus(buildWorkingMessageForToolStart(toolCall))
         host.publishState()
     }
 
@@ -208,7 +208,9 @@ internal class AIAssistantStreamingTurnController(
         if (chunk.isNotBlank()) {
             pendingTool.sawOutput = true
             pendingTool.outputChunks += 1
-            if (outputBuffer.isNotEmpty()) {
+            if (shouldReplaceToolOutput(toolCall)) {
+                outputBuffer.setLength(0)
+            } else if (outputBuffer.isNotEmpty()) {
                 outputBuffer.append('\n')
             }
             outputBuffer.append(chunk)
@@ -263,13 +265,7 @@ internal class AIAssistantStreamingTurnController(
         )
         replaceOrAppendStreamToolAttachment(updatedItem)
         pendingTool?.let { toolOutputBuffers.remove(it.itemId) }
-        updateAssistantWorkingStatus(
-            if (result.success) {
-                "Tool completed: ${buildToolTitle(result.toolName)}"
-            } else {
-                "Tool failed: ${buildToolTitle(result.toolName)}"
-            }
-        )
+        updateAssistantWorkingStatus(buildWorkingMessageForToolCompletion(result))
         host.publishState()
     }
 
@@ -478,6 +474,16 @@ internal class AIAssistantStreamingTurnController(
 
     private fun toolCallSummary(toolCall: AIToolCall): String {
         return when (toolCall.name.lowercase()) {
+            "command_execution" -> toolCall.argument("command").orEmpty()
+            "web_search" -> toolCall.argument("query")
+                ?: toolCall.argument("summary").orEmpty()
+            "todo_list" -> toolCall.argument("summary").orEmpty()
+            "mcp_tool_call", "mcp_tool" -> toolCall.argument("summary").orEmpty()
+            "reasoning" -> toolCall.argument("summary")
+                ?: toolCall.argument("text").orEmpty()
+            "function_call" -> toolCall.argument("name")
+                ?: toolCall.argument("summary").orEmpty()
+            "function_call_output" -> toolCall.argument("summary").orEmpty()
             "find_files", "search_project" -> toolCall.argument("pattern").orEmpty()
             "read_file_range", "replace_file_range" -> listOfNotNull(
                 toolCall.argument("file"),
@@ -494,6 +500,17 @@ internal class AIAssistantStreamingTurnController(
 
     private fun buildToolTitle(toolName: String): String {
         return when (toolName.lowercase()) {
+            "command_execution" -> "Command"
+            "file_change" -> "File change"
+            "web_search" -> "Web search"
+            "todo_list" -> "Plan"
+            "mcp_tool_call", "mcp_tool" -> "MCP tool"
+            "reasoning" -> "Reasoning"
+            "function_call" -> "Function call"
+            "function_call_output" -> "Function output"
+            "file_search" -> "File search"
+            "code_interpreter" -> "Code interpreter"
+            "computer_use" -> "Computer use"
             "find_files" -> "Find files"
             "search_project" -> "Search project"
             "read_file_range" -> "Read file range"
@@ -528,31 +545,59 @@ internal class AIAssistantStreamingTurnController(
 
     private fun toolInvocationSummary(toolCall: AIToolCall): String? {
         return when (toolCall.name.lowercase()) {
-            "run_terminal_command" -> toolCall.argument("command")
+            "run_terminal_command", "command_execution" -> toolCall.argument("command")
             "build_project" -> toolCall.argument("tasks")
+            "mcp_tool_call", "mcp_tool" -> listOfNotNull(
+                toolCall.argument("server"),
+                toolCall.argument("tool")
+            ).joinToString("/")
+                .takeIf { it.isNotBlank() }
+            "function_call" -> toolCall.argument("name")
             else -> null
         }?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun shouldReplaceToolOutput(toolCall: AIToolCall): Boolean {
+        return toolCall.argument("output_mode").equals("replace", ignoreCase = true)
+    }
+
+    private fun buildWorkingMessageForToolStart(toolCall: AIToolCall): String {
+        return when (toolCall.name.lowercase()) {
+            "web_search" -> "Searching the web"
+            "todo_list" -> "Updating plan"
+            "reasoning" -> "Thinking"
+            "command_execution", "run_terminal_command" -> "Running command"
+            "file_change" -> "Applying file changes"
+            "mcp_tool_call", "mcp_tool" -> toolCall.argument("tool")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "Calling $it" }
+                ?: "Calling MCP tool"
+            "function_call" -> toolCall.argument("name")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "Calling $it" }
+                ?: "Calling function"
+            else -> "Working on ${buildToolTitle(toolCall.name)}"
+        }
+    }
+
+    private fun buildWorkingMessageForToolCompletion(result: AIToolExecutionResult): String {
+        return when (result.toolName.lowercase()) {
+            "web_search" -> if (result.success) "Searched the web" else "Web search failed"
+            "todo_list" -> if (result.success) "Plan updated" else "Plan update failed"
+            "reasoning" -> if (result.success) "Reasoning updated" else "Reasoning failed"
+            else -> if (result.success) {
+                "${buildToolTitle(result.toolName)} completed"
+            } else {
+                "${buildToolTitle(result.toolName)} failed"
+            }
+        }
     }
 
     private fun buildToolCompletionSummary(
         result: AIToolExecutionResult,
         pendingTool: PendingToolItem?
     ): String {
-        val details = mutableListOf<String>()
-        result.exitCode?.let { details += "exit $it" }
-        pendingTool?.let { pending ->
-            val elapsedMs = (SystemClock.elapsedRealtime() - pending.startedAtMs).coerceAtLeast(0L)
-            if (elapsedMs > 0L) {
-                details += formatDuration(elapsedMs)
-            }
-            if (pending.outputChunks > 0) {
-                details += "${pending.outputChunks} chunk" + if (pending.outputChunks == 1) "" else "s"
-            }
-        }
-        if (details.isEmpty()) {
-            return result.summary
-        }
-        return "${result.summary} · ${details.joinToString(" · ")}"
+        return result.summary
     }
 
     private fun formatDuration(durationMs: Long): String {

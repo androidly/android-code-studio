@@ -108,3 +108,4 @@ scripts/
 # local.properties
 build.log
 .androidide
+.agent/
