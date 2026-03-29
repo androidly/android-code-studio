@@ -109,3 +109,18 @@ scripts/
 build.log
 .androidide
 .agent/
+
+# Local developer environment files
+.android-user-home/
+.claude/
+.tmp/
+
+# IntelliJ/Android Studio local state
+.idea/*
+!.idea/codeStyles/
+!.idea/codeStyles/**
+!.idea/inspectionProfiles/
+!.idea/inspectionProfiles/**
+
+# Nested module build outputs
+/external/*/build/
