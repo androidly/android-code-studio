@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
@@ -32,11 +33,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.tom.rv2ide.artificial.dialogs.LocalLLMConfigDialog
 
-class AIPreferencesFragment(
-    private val aiAgent: AIAgentManager,
-    private val agents: Agents,
+class AIPreferencesFragment : Fragment() {
+
+    private val sharedViewModel by activityViewModels<ArtificialSharedViewModel>()
+
+    private val aiAgent: AIAgentManager
+        get() = sharedViewModel.aiAgent
+
+    private val agents: Agents
+        get() = sharedViewModel.agents
+
     private val codeCompletionManager: CodeCompletionManager?
-) : Fragment() {
+        get() = (parentFragment as? ArtificialFragment)?.currentCodeCompletionManager()
 
     private lateinit var providerDropdown: AutoCompleteTextView
     private lateinit var modelDropdown: AutoCompleteTextView

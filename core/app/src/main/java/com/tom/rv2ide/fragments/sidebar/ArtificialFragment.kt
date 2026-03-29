@@ -6,9 +6,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import androidx.activity.OnBackPressedCallback
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
-import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
@@ -19,19 +19,17 @@ import com.google.android.material.tabs.TabLayoutMediator
 import com.tom.rv2ide.R
 import com.tom.rv2ide.adapters.ViewPagerAdapter
 import com.tom.rv2ide.artificial.agents.AIAgentManager
-import com.tom.rv2ide.artificial.agents.Agents
 import com.tom.rv2ide.fragments.ChatFragment
-import com.tom.rv2ide.fragments.AIHistoryFragment
 import com.tom.rv2ide.managers.NavigationRailManager
 import com.tom.rv2ide.managers.CodeCompletionManager
-import com.tom.rv2ide.ui.CodeEditorView
 
-class ArtificialFragment(
-    private val editorView: CodeEditorView? = null
-) : Fragment() {
+class ArtificialFragment : Fragment() {
 
-    private lateinit var aiAgent: AIAgentManager
-    private lateinit var agents: Agents
+    private val sharedViewModel by activityViewModels<ArtificialSharedViewModel>()
+
+    private val aiAgent: AIAgentManager
+        get() = sharedViewModel.aiAgent
+
     private lateinit var viewPager: ViewPager2
     private lateinit var tabLayout: TabLayout
     private lateinit var undoFab: ExtendedFloatingActionButton
@@ -68,10 +66,7 @@ class ArtificialFragment(
     
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-    
-        aiAgent = AIAgentManager(requireContext())
-        agents = Agents(requireContext())
-    
+
         viewPager = view.findViewById(R.id.viewPager)
         tabLayout = view.findViewById(R.id.tabLayout)
         undoFab = view.findViewById(R.id.undoFab)
@@ -99,7 +94,7 @@ class ArtificialFragment(
     }
     
     private fun setupViewPager() {
-        val adapter = ViewPagerAdapter(requireActivity(), aiAgent)
+        val adapter = ViewPagerAdapter(this)
         viewPager.adapter = adapter
         viewPager.offscreenPageLimit = 1
         viewPager.isUserInputEnabled = true
@@ -164,19 +159,16 @@ class ArtificialFragment(
     }
     
     private fun getCurrentChatFragment(): ChatFragment? {
-        val fragments = childFragmentManager.fragments
-        return fragments.find { it is ChatFragment && it.isVisible } as? ChatFragment
+        val childChat = childFragmentManager.fragments.firstOrNull { it is ChatFragment } as? ChatFragment
+        return childChat ?: (parentFragmentManager.fragments.firstOrNull { it is ChatFragment } as? ChatFragment)
+    }
+
+    fun currentCodeCompletionManager(): CodeCompletionManager? {
+        return getCurrentChatFragment()?.getCodeCompletionManager()
     }
 
     private fun openAIPreferences() {
-        val chatFragment = getCurrentChatFragment()
-        val completionManager = chatFragment?.getCodeCompletionManager()
-        
-        val preferencesFragment = AIPreferencesFragment(
-            aiAgent,
-            agents,
-            completionManager
-        )
+        val preferencesFragment = AIPreferencesFragment()
         
         val slideIn = AnimationUtils.loadAnimation(requireContext(), android.R.anim.slide_in_left)
         val slideOut = AnimationUtils.loadAnimation(requireContext(), android.R.anim.slide_out_right)

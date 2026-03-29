@@ -4,14 +4,21 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.tom.rv2ide.R
 import com.tom.rv2ide.adapters.HistoryAdapter
 import com.tom.rv2ide.artificial.agents.AIAgentManager
+import com.tom.rv2ide.fragments.sidebar.ArtificialSharedViewModel
 
-class AIHistoryFragment(private val aiAgent: AIAgentManager) : Fragment() {
+class AIHistoryFragment : Fragment() {
+
+    private val sharedViewModel by activityViewModels<ArtificialSharedViewModel>()
+
+    private val aiAgent: AIAgentManager
+        get() = sharedViewModel.aiAgent
 
     private lateinit var historyRecyclerView: RecyclerView
     private lateinit var historyAdapter: HistoryAdapter

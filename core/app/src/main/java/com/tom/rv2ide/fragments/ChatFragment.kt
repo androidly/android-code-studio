@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -18,18 +19,22 @@ import android.content.SharedPreferences
 import com.tom.rv2ide.R
 import com.tom.rv2ide.adapters.FileModificationAdapter
 import com.tom.rv2ide.artificial.agents.AIAgentManager
-import com.tom.rv2ide.managers.CodeCompletionManager
-import com.tom.rv2ide.handlers.AIRequestHandler
-import com.tom.rv2ide.utils.ProjectHelper.getProjectRoot
 import com.tom.rv2ide.activities.editor.EditorHandlerActivity
+import com.tom.rv2ide.fragments.sidebar.ArtificialSharedViewModel
+import com.tom.rv2ide.handlers.AIRequestHandler
+import com.tom.rv2ide.managers.CodeCompletionManager
+import com.tom.rv2ide.utils.ProjectHelper.getProjectRoot
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
-class ChatFragment(
+class ChatFragment : Fragment() {
+
+    private val sharedViewModel by activityViewModels<ArtificialSharedViewModel>()
+
     private val aiAgent: AIAgentManager
-) : Fragment() {
+        get() = sharedViewModel.aiAgent
 
     private lateinit var promptInput: TextInputEditText
     private lateinit var executeBtn: MaterialButton
@@ -313,8 +318,8 @@ class ChatFragment(
         }
     }
     
-    fun getCodeCompletionManager(): CodeCompletionManager {
-        return codeCompletionManager
+    fun getCodeCompletionManager(): CodeCompletionManager? {
+        return if (::codeCompletionManager.isInitialized) codeCompletionManager else null
     }
 
     private fun openFileInEditor(fileName: String) {
@@ -462,7 +467,9 @@ class ChatFragment(
         typingJob?.cancel()
         fileMonitorJob?.cancel()
         completionStateMonitorJob?.cancel()
-        aiRequestHandler.cancel()
+        if (::aiRequestHandler.isInitialized) {
+            aiRequestHandler.cancel()
+        }
         unregisterPreferenceListener()
         super.onDestroyView()
     }

@@ -1,23 +1,20 @@
 package com.tom.rv2ide.adapters
 
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import com.tom.rv2ide.artificial.agents.AIAgentManager
-import com.tom.rv2ide.fragments.ChatFragment
 import com.tom.rv2ide.fragments.AIHistoryFragment
+import com.tom.rv2ide.fragments.ChatFragment
 
 class ViewPagerAdapter(
-    fragmentActivity: FragmentActivity,
-    private val aiAgent: AIAgentManager
-) : FragmentStateAdapter(fragmentActivity) {
+    fragment: Fragment
+) : FragmentStateAdapter(fragment) {
 
     override fun getItemCount(): Int = 2
 
     override fun createFragment(position: Int): Fragment {
         return when (position) {
-            0 -> ChatFragment(aiAgent)
-            1 -> AIHistoryFragment(aiAgent)
+            0 -> ChatFragment()
+            1 -> AIHistoryFragment()
             else -> throw IllegalArgumentException("Invalid position: $position")
         }
     }
