@@ -184,6 +184,10 @@ abstract class BaseEditorActivity :
   val binding: ActivityEditorBinding
     get() = checkNotNull(_binding) { "Activity has been destroyed" }
 
+  internal fun isUiActive(): Boolean {
+    return _binding != null && !isDestroying && !isDestroyed
+  }
+
   val content: ContentEditorBinding
     get() = binding.content
 
@@ -498,7 +502,7 @@ abstract class BaseEditorActivity :
   /** Show a subtle indicator that a file was auto-saved */
   private fun showAutoSaveIndicator(fileName: String) {
     // Update status to show auto-save happened
-    val statusText = "Auto-saved: $fileName"
+    val statusText = getString(string.editor_status_auto_saved, fileName)
     doSetStatus(statusText, android.view.Gravity.CENTER)
 
     // Clear the status after a short delay
@@ -732,9 +736,9 @@ override fun onApplySystemBarInsets(insets: Insets) {
     val setup = Setup(this)
     setup.scanProjectForLanguageServers(ProjectManagerImpl.getInstance().projectDir) { isSuccessfullyInstalled ->
       if (isSuccessfullyInstalled) {
-        flashSuccess("Installation succeeded")
+        flashSuccess(string.build_installation_succeeded)
         if (!editorViewModel.isInitializing) {
-          flashInfo("Reinitializing project...")
+          flashInfo(string.build_reinitializing_project)
           (this as? ProjectHandlerActivity)?.initializeProject()
         }
       }
@@ -1174,14 +1178,9 @@ override fun onApplySystemBarInsets(insets: Insets) {
 
   private fun showNdkNotInstalledDialog(context: Context, onDismiss: () -> Unit = {}) {
     MaterialAlertDialogBuilder(context)
-        .setTitle("NDK Not Found")
-        .setMessage(
-            "A compatible NDK (version 28.2.13676358) is not installed.\n\n" +
-                "Native code features will be disabled for this project.\n\n" +
-                "To enable native development, please install NDK version 28.2.13676358 " +
-                "open a terminal then run: 'idesetup -y -c -wn'."
-        )
-        .setPositiveButton("OK") { dialog, _ ->
+        .setTitle(string.ndk_not_found_title)
+        .setMessage(string.ndk_not_found_message)
+        .setPositiveButton(android.R.string.ok) { dialog, _ ->
           dialog.dismiss()
           onDismiss()
         }

@@ -87,9 +87,17 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
                       }
                   }
                   
-                  Toast.makeText(this, "Font copied successfully: $fileName", Toast.LENGTH_SHORT).show()
+                  Toast.makeText(
+                      this,
+                      getString(R.string.preferences_font_copied_success, fileName),
+                      Toast.LENGTH_SHORT,
+                  ).show()
               } catch (e: Exception) {
-                  Toast.makeText(this, "Error copying font: ${e.message}", Toast.LENGTH_LONG).show()
+                  Toast.makeText(
+                      this,
+                      getString(R.string.preferences_font_copy_error, e.message.orEmpty()),
+                      Toast.LENGTH_LONG,
+                  ).show()
               }
           }
       }

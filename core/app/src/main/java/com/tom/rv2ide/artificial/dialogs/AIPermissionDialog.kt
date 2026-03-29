@@ -42,17 +42,17 @@ class AIPermissionDialog(private val context: Context) {
         onDeny: () -> Unit
     ) {
         MaterialAlertDialogBuilder(context)
-            .setTitle("AI File Write Permission")
-            .setMessage("AI wants to write to:\n$fileName\n\nAllow this action?")
-            .setPositiveButton("Allow") { dialog, _ ->
+            .setTitle(R.string.ai_assistant_file_write_permission_title)
+            .setMessage(context.getString(R.string.ai_assistant_file_write_permission_message, fileName))
+            .setPositiveButton(R.string.ai_assistant_allow) { dialog, _ ->
                 onConfirm()
                 dialog.dismiss()
             }
-            .setNegativeButton("Deny") { dialog, _ ->
+            .setNegativeButton(R.string.ai_assistant_deny) { dialog, _ ->
                 onDeny()
                 dialog.dismiss()
             }
-            .setNeutralButton("Always Allow") { dialog, _ ->
+            .setNeutralButton(R.string.ai_assistant_always_allow) { dialog, _ ->
                 permissionManager.setRequireConfirmation(false)
                 onConfirm()
                 dialog.dismiss()
@@ -77,16 +77,16 @@ class AIPermissionDialog(private val context: Context) {
         autoBackupCheckbox.isChecked = permissionManager.isAutoBackupEnabled()
 
         MaterialAlertDialogBuilder(context)
-            .setTitle("AI Permissions")
+            .setTitle(R.string.ai_assistant_permissions_dialog_title)
             .setView(view)
-            .setPositiveButton("Save") { dialog, _ ->
+            .setPositiveButton(R.string.save) { dialog, _ ->
                 permissionManager.setFileWriteEnabled(enableWriteCheckbox.isChecked)
                 permissionManager.setRequireConfirmation(requireConfirmationCheckbox.isChecked)
                 permissionManager.setAutoBackup(autoBackupCheckbox.isChecked)
                 onSettingsChanged()
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel") { dialog, _ ->
+            .setNegativeButton(R.string.cancel) { dialog, _ ->
                 dialog.dismiss()
             }
             .show()

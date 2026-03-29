@@ -135,7 +135,11 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
       }
     }
 
-    val nativeLangValues = arrayOf("C++", "C")
+    val nativeLangValues =
+        arrayOf(
+            ctx.getString(R.string.wizard_native_language_cpp),
+            ctx.getString(R.string.wizard_native_language_c),
+        )
     binding.nativeLanguageInput.apply {
       setSimpleItems(nativeLangValues)
       setText(nativeLangValues[0], false)
@@ -184,8 +188,8 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
     val cmakeVersions = Check.getAllCMakeVersions()
     if (cmakeVersions.isEmpty()) {
       showAlert(
-          "CMake Not Found",
-          "No CMake installation found. Please install CMake from IDE Settings.",
+          getString(R.string.wizard_cmake_not_found_title),
+          getString(R.string.wizard_cmake_not_found_message),
       ) {
         startActivity(Intent(requireContext(), IDEConfigurations::class.java))
       }
@@ -197,7 +201,10 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
 
   private fun validateNativeTemplate(ctx: Context) {
     val progressDialog =
-        showProgress("Checking NDK...", "Please wait while we validate your NDK installation.")
+        showProgress(
+            getString(R.string.wizard_checking_ndk_title),
+            getString(R.string.wizard_checking_ndk_message),
+        )
 
     CoroutineScope(Dispatchers.IO).launch {
       val hasNdk = Check.isAtLeastOneInstalled()
@@ -212,7 +219,7 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
           !isValid ->
               showNdkError(
                   ctx,
-                  "The highest NDK version found ($highestNdk) is invalid or corrupted.",
+                  getString(R.string.wizard_invalid_ndk_detected, highestNdk),
               )
           else -> {
             Options.OPT_SELECTED_NDK_VERSION = highestNdk
@@ -242,7 +249,11 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
       binding.useCMakeSwitch.visibility = if (isNative) View.VISIBLE else View.GONE
       binding.nativeLanguageInputLayout.visibility = if (isNative) View.VISIBLE else View.GONE
       binding.ndkVersionButton.visibility = if (isNative) View.VISIBLE else View.GONE
-      binding.ndkVersionButton.text = "NDK: ${Options.OPT_SELECTED_NDK_VERSION ?: "Auto"}"
+      binding.ndkVersionButton.text =
+          getString(
+              R.string.wizard_ndk_version_selected,
+              Options.OPT_SELECTED_NDK_VERSION ?: getString(R.string.wizard_ndk_auto),
+          )
 
       SheetTransitions.slide(
           binding.wizardContainer,
@@ -282,8 +293,8 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
 
     if (projectDir.exists()) {
       showAlert(
-          "Project Already Exists",
-          "A project named '$proj' already exists at this location.",
+          getString(R.string.wizard_project_exists_title),
+          getString(R.string.wizard_project_exists_message, proj),
       )
       return
     }
@@ -312,7 +323,10 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
               TemplateOptions(proj, pkg, lang, sdkApi, Options.OPT_USE_GRADLE_KTS, File(savePath)),
           )
         } catch (e: Exception) {
-          listener?.onTemplateCreated(false, "Error: ${e.message}")
+          listener?.onTemplateCreated(
+              false,
+              getString(R.string.template_creation_failed, e.message.orEmpty()),
+          )
         }
       }
     } ?: listener?.onCreationCancelled()
@@ -322,9 +336,9 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
 
   private fun requireAcsHomeProjectsDir() {
     showAlert(
-        "Invalid Save Location",
-        "Game projects must be saved in the Android Code Studio home directory to work correctly.",
-        "Automatically switch",
+        getString(R.string.wizard_invalid_save_location_title),
+        getString(R.string.wizard_invalid_save_location_message),
+        getString(R.string.wizard_invalid_save_location_action),
     ) {
       binding.saveLocationInput.setText(Environment.AT_ACSHOME_PROJECTS.toString())
       WizardPreferences.setLastSaveLocation(
@@ -347,12 +361,11 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
 
     when {
       projectDir.exists() -> {
-        binding.projectNameLayout.error = "A project with this name already exists at this location"
+        binding.projectNameLayout.error = getString(R.string.wizard_project_name_exists_error)
         binding.createButton.isEnabled = false
       }
       !projectName.matches(Regex("^[a-zA-Z][a-zA-Z0-9_]*$")) -> {
-        binding.projectNameLayout.error =
-            "Project name must start with a letter and contain only letters, numbers, and underscores"
+        binding.projectNameLayout.error = getString(R.string.wizard_project_name_invalid_error)
         binding.createButton.isEnabled = false
       }
       else -> {
@@ -380,7 +393,10 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
   private fun showNdkVersionPicker(ctx: Context) {
     val versions = Check.getAllNdkVersions()
     if (versions.isEmpty()) {
-      showAlert("No NDK Found", "No NDK versions are installed.")
+      showAlert(
+          getString(R.string.wizard_no_ndk_found_title),
+          getString(R.string.wizard_no_ndk_found_message),
+      )
       return
     }
 
@@ -389,18 +405,23 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
     val currentIndex = versions.indexOf(Options.OPT_SELECTED_NDK_VERSION).coerceAtLeast(0)
 
     MaterialAlertDialogBuilder(ctx)
-        .setTitle("Select NDK Version")
+        .setTitle(R.string.wizard_select_ndk_version)
         .setSingleChoiceItems(versionLabels, currentIndex) { dialog, which ->
           val selectedVersion = versions[which]
           if (Check.validateNdkVersion(selectedVersion)) {
             Options.OPT_SELECTED_NDK_VERSION = selectedVersion
-            binding.ndkVersionButton.text = "NDK: $selectedVersion"
+            binding.ndkVersionButton.text =
+                getString(R.string.wizard_ndk_version_selected, selectedVersion)
             dialog.dismiss()
           } else {
-            Toast.makeText(ctx, "Invalid NDK: $selectedVersion", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                ctx,
+                ctx.getString(R.string.wizard_invalid_ndk, selectedVersion),
+                Toast.LENGTH_SHORT,
+            ).show()
           }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(android.R.string.cancel, null)
         .show()
   }
 
@@ -411,30 +432,42 @@ class AtcWizardDialog : BottomSheetDialogFragment() {
             .toTypedArray()
 
     MaterialAlertDialogBuilder(ctx)
-        .setTitle("Select CMake Version")
+        .setTitle(R.string.wizard_select_cmake_version)
         .setSingleChoiceItems(versionLabels, 0) { dialog, which ->
           val selectedVersion = versions[which]
           Check.validateCMakeVersion(selectedVersion)?.let { path ->
             Options.OPT_CMAKE_PATH = path
-            Toast.makeText(ctx, "CMake $selectedVersion selected", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                ctx,
+                ctx.getString(R.string.wizard_cmake_selected, selectedVersion),
+                Toast.LENGTH_SHORT,
+            ).show()
             dialog.dismiss()
-          } ?: Toast.makeText(ctx, "Invalid CMake: $selectedVersion", Toast.LENGTH_SHORT).show()
+          }
+              ?: Toast.makeText(
+                      ctx,
+                      ctx.getString(R.string.wizard_invalid_cmake, selectedVersion),
+                      Toast.LENGTH_SHORT,
+                  )
+                  .show()
         }
-        .setNegativeButton("Cancel") { _, _ -> binding.useCMakeSwitch.isChecked = false }
+        .setNegativeButton(android.R.string.cancel) { _, _ -> binding.useCMakeSwitch.isChecked = false }
         .show()
   }
 
   private fun showAlert(
       title: String,
       message: String,
-      positiveText: String = "OK",
+      positiveText: String = "",
       onPositive: (() -> Unit)? = null,
   ) {
     MaterialAlertDialogBuilder(requireContext())
         .setTitle(title)
         .setMessage(message)
-        .setPositiveButton(positiveText) { _, _ -> onPositive?.invoke() }
-        .setNegativeButton("Cancel", null)
+        .setPositiveButton(
+            if (positiveText.isNotEmpty()) positiveText else getString(android.R.string.ok)
+        ) { _, _ -> onPositive?.invoke() }
+        .setNegativeButton(android.R.string.cancel, null)
         .show()
   }
 
@@ -509,7 +542,7 @@ class TemplateAdapter(
 
   override fun onBindViewHolder(holder: TemplateVH, position: Int) {
     val template = templates[position]
-    holder.title.text = template.displayName
+    holder.title.text = template.getDisplayName(ctx)
 
     val resId =
         ctx.resources.getIdentifier(

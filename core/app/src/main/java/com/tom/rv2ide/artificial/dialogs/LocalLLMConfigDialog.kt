@@ -55,8 +55,18 @@ class LocalLLMConfigDialog(
 
     private fun loadSavedConfig() {
         val prefs = BaseApplication.getBaseInstance().prefManager
-        baseUrlInput.setText(prefs.getString("local_llm_base_url", "http://localhost:1234"))
-        modelNameInput.setText(prefs.getString("local_llm_model_name", "local-model"))
+        baseUrlInput.setText(
+            prefs.getString(
+                "local_llm_base_url",
+                getString(R.string.ai_assistant_local_llm_base_url_default)
+            )
+        )
+        modelNameInput.setText(
+            prefs.getString(
+                "local_llm_model_name",
+                getString(R.string.ai_assistant_local_llm_model_default)
+            )
+        )
     }
 
     private fun saveConfig(baseUrl: String, modelName: String) {

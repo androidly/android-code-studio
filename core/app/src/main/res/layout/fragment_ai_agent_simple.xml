@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -99,12 +100,13 @@
                     android:id="@+id/til_prompt"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:hint="Ask AI anything..."
+                    android:hint="@string/ai_assistant_simple_prompt_hint"
                     app:boxBackgroundMode="none"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toStartOf="@+id/btn_send"
                     app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintBottom_toBottomOf="parent">
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    tools:hint="Ask AI anything...">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/et_prompt"

@@ -13,6 +13,7 @@
         android:orientation="vertical">
 
         <LinearLayout
+            android:id="@+id/streamMetaRow"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
@@ -62,11 +63,61 @@
                 android:paddingEnd="14dp"
                 android:paddingBottom="12dp">
 
+                <LinearLayout
+                    android:id="@+id/streamTopWorkingRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <com.tom.rv2ide.fragments.assistant.AIAssistantWorkingTextView
+                        android:id="@+id/streamTopWorkingText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.04"
+                        android:text="@string/ai_assistant_working"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                        android:textColor="?attr/colorPrimary"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/streamBody"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textIsSelectable="true" />
+
+                <LinearLayout
+                    android:id="@+id/streamBottomWorkingRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <com.tom.rv2ide.fragments.assistant.AIAssistantWorkingTextView
+                        android:id="@+id/streamBottomWorkingText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.04"
+                        android:text="@string/ai_assistant_working"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                        android:textColor="?attr/colorPrimary"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/streamActivityCard"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="10dp"
+                    android:layout_marginTop="10dp"
                     android:visibility="gone"
                     app:cardBackgroundColor="?attr/colorSecondaryContainer"
                     app:cardCornerRadius="16dp"
@@ -133,28 +184,44 @@
                             android:overScrollMode="never"
                             android:visibility="gone" />
 
+                        <LinearLayout
+                            android:id="@+id/streamAttachmentFooter"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:foreground="?attr/selectableItemBackgroundBorderless"
+                            android:gravity="center_vertical"
+                            android:minHeight="32dp"
+                            android:orientation="horizontal"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:id="@+id/streamAttachmentFooterText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="@string/ai_assistant_hide_activity"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                                android:textColor="?attr/colorOnSecondaryContainer"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/streamAttachmentFooterChevron"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="^"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                                android:textColor="?attr/colorOnSecondaryContainer"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
                     </LinearLayout>
 
                 </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.progressindicator.LinearProgressIndicator
-                    android:id="@+id/streamProgress"
-                    android:layout_width="match_parent"
-                    android:layout_height="3dp"
-                    android:layout_marginTop="10dp"
-                    android:indeterminate="true"
-                    android:visibility="gone"
-                    app:indicatorColor="?attr/colorPrimary"
-                    app:trackCornerRadius="3dp" />
-
-                <TextView
-                    android:id="@+id/streamBody"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textIsSelectable="true" />
 
             </LinearLayout>
 

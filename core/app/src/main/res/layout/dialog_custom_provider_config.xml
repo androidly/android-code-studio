@@ -16,7 +16,7 @@
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Configure Custom Provider"
+            android:text="@string/ai_assistant_custom_provider_dialog_title"
             android:textAppearance="?attr/textAppearanceHeadlineSmall"
             android:textColor="?attr/colorOnSurface"
             android:layout_marginBottom="8dp" />
@@ -24,7 +24,7 @@
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Supports OpenAI Chat, OpenAI Responses, and Claude Messages compatible gateways."
+            android:text="@string/ai_assistant_custom_provider_dialog_summary"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginBottom="20dp" />
@@ -33,7 +33,7 @@
             android:id="@+id/profileNameLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Profile Name"
+            android:hint="@string/ai_assistant_custom_provider_profile_name_hint"
             android:layout_marginBottom="16dp"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
@@ -42,7 +42,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textPersonName"
-                android:hint="NewAPI Primary" />
+                android:hint="@string/ai_assistant_custom_provider_profile_name_example" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -50,7 +50,7 @@
             android:id="@+id/baseUrlLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Base URL"
+            android:hint="@string/ai_assistant_base_url_hint"
             android:layout_marginBottom="16dp"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
@@ -59,7 +59,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textUri"
-                android:hint="https://your-newapi-domain.com" />
+                android:hint="@string/ai_assistant_base_url_example" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -67,7 +67,7 @@
             android:id="@+id/apiKeyLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="API Key"
+            android:hint="@string/ai_assistant_api_key_hint"
             android:layout_marginBottom="16dp"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             app:endIconMode="password_toggle">
@@ -84,7 +84,7 @@
             android:id="@+id/apiTypeLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="API Type"
+            android:hint="@string/ai_assistant_custom_provider_api_type_hint"
             android:layout_marginBottom="16dp"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
@@ -100,7 +100,7 @@
             android:id="@+id/modelLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Model ID"
+            android:hint="@string/ai_assistant_custom_provider_model_id_hint"
             android:layout_marginBottom="12dp"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
@@ -116,7 +116,7 @@
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Use Fetch Models for NewAPI / OpenAI-compatible domains. You can also type a model ID manually."
+            android:text="@string/ai_assistant_custom_provider_status_text"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginBottom="20dp" />
@@ -131,7 +131,7 @@
                 android:id="@+id/fetchModelsButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Fetch Models"
+                android:text="@string/ai_assistant_fetch_models"
                 android:layout_marginEnd="8dp"
                 style="@style/Widget.Material3.Button.TonalButton" />
 
@@ -139,7 +139,7 @@
                 android:id="@+id/cancelButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Cancel"
+                android:text="@string/cancel"
                 android:layout_marginEnd="8dp"
                 style="@style/Widget.Material3.Button.TextButton" />
 
@@ -147,7 +147,7 @@
                 android:id="@+id/saveButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Save"
+                android:text="@string/save"
                 style="@style/Widget.Material3.Button" />
 
         </LinearLayout>

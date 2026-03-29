@@ -24,7 +24,22 @@ pluginManagement {
     name = "build-logic"
   }
 
+  resolutionStrategy {
+    eachPlugin {
+      if (requested.id.id in setOf("com.android.application", "com.android.library")) {
+        useModule("com.android.tools.build:gradle:8.13.0")
+      }
+      if (requested.id.id == "com.google.devtools.ksp") {
+        useModule("com.google.devtools.ksp:symbol-processing-gradle-plugin:${requested.version}")
+      }
+    }
+  }
+
   repositories {
+    mavenLocal()
+    maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+    maven { url = uri("https://maven.aliyun.com/repository/google") }
+    maven { url = uri("https://maven.aliyun.com/repository/central") }
     gradlePluginPortal()
     google()
     mavenCentral()
@@ -68,6 +83,8 @@ dependencyResolutionManagement {
   repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
   repositories {
     mavenLocal()
+    maven { url = uri("https://maven.aliyun.com/repository/google") }
+    maven { url = uri("https://maven.aliyun.com/repository/central") }
     google()
     mavenCentral()
     maven { url = uri("https://jitpack.io") }
@@ -77,9 +94,7 @@ dependencyResolutionManagement {
 }
 
 gradle.rootProject {
-    val appMainVersion = System.getenv("MAIN_VERSION") ?: "1.0.0"
-    val revision = "r${System.getenv("REVISION_NUM") ?: "03"}"
-    val baseVersion = "$appMainVersion+gh.$revision"
+    val baseVersion = "v1.0.1+codex"
     println("Android code studio version: $baseVersion")
     project.setProperty("version", baseVersion)
 }

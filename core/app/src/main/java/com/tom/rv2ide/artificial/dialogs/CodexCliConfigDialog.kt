@@ -104,7 +104,7 @@ class CodexCliConfigDialog(
             ArrayAdapter(
                 requireContext(),
                 android.R.layout.simple_dropdown_item_1line,
-                CodexCliAuthMode.displayNames()
+                CodexCliAuthMode.entries.map(::authModeLabel)
             )
         )
         authModeInput.setOnClickListener { authModeInput.showDropDown() }
@@ -125,7 +125,7 @@ class CodexCliConfigDialog(
         providerNameInput.setText(settings.providerName)
         baseUrlInput.setText(settings.baseUrl)
         apiKeyInput.setText(settings.apiKey)
-        authModeInput.setText(settings.authMode.displayName, false)
+        authModeInput.setText(authModeLabel(settings.authMode), false)
         modelInput.setText(settings.model, false)
         reviewModelInput.setText(settings.reviewModel)
         reasoningInput.setText(settings.reasoningEffort.displayName, false)
@@ -146,11 +146,11 @@ class CodexCliConfigDialog(
 
             var hasError = false
             if (baseUrl.isBlank()) {
-                baseUrlLayout.error = "Base URL is required to fetch models"
+                baseUrlLayout.error = getString(R.string.ai_assistant_fetch_models_base_url_required)
                 hasError = true
             }
             if (apiKey.isBlank()) {
-                apiKeyLayout.error = "API key is required to fetch models"
+                apiKeyLayout.error = getString(R.string.ai_assistant_fetch_models_api_key_required)
                 hasError = true
             }
             if (hasError) {
@@ -190,7 +190,11 @@ class CodexCliConfigDialog(
 
     private fun fetchModels(baseUrl: String, apiKey: String) {
         setLoading(true)
-        statusText.text = "Fetching models from ${CodexCliConfig.versionedBaseUrl(baseUrl).removeSuffix("/v1")}/v1/models"
+        statusText.text =
+            getString(
+                R.string.ai_assistant_fetching_models_from,
+                "${CodexCliConfig.versionedBaseUrl(baseUrl).removeSuffix("/v1")}/v1/models"
+            )
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -204,9 +208,9 @@ class CodexCliConfigDialog(
                 if (reviewModelInput.text.isNullOrBlank() && models.isNotEmpty()) {
                     reviewModelInput.setText(models.first())
                 }
-                statusText.text = "Fetched ${models.size} models"
+                statusText.text = getString(R.string.ai_assistant_fetched_models_count, models.size)
             } catch (error: Exception) {
-                statusText.text = error.message ?: "Failed to fetch models"
+                statusText.text = error.message ?: getString(R.string.ai_assistant_fetch_models_failed)
             } finally {
                 setLoading(false)
             }
@@ -222,38 +226,38 @@ class CodexCliConfigDialog(
         val apiKey = apiKeyInput.text?.toString().orEmpty().trim()
         val model = modelInput.text?.toString().orEmpty().trim()
         val reviewModel = reviewModelInput.text?.toString().orEmpty().trim().ifBlank { model }
-        val authMode = CodexCliAuthMode.fromDisplayName(authModeInput.text?.toString())
+        val authMode = authModeFromLabel(authModeInput.text?.toString())
         val reasoningEffort = CodexCliReasoningEffort.fromDisplayName(reasoningInput.text?.toString())
         val contextWindow = contextWindowInput.text?.toString().orEmpty().trim().toLongOrNull()
         val autoCompact = autoCompactInput.text?.toString().orEmpty().trim().toLongOrNull()
 
         var hasError = false
         if (!CodexCliConfig.isValidProviderId(providerId)) {
-            providerIdLayout.error = "Use letters, numbers, underscore, or hyphen only"
+            providerIdLayout.error = getString(R.string.ai_assistant_codex_provider_id_validation)
             hasError = true
         }
         if (apiKey.isBlank()) {
-            apiKeyLayout.error = "API key is required"
+            apiKeyLayout.error = getString(R.string.ai_assistant_api_key_required)
             hasError = true
         }
         if (model.isBlank()) {
-            modelLayout.error = "Model is required"
+            modelLayout.error = getString(R.string.ai_assistant_model_required)
             hasError = true
         }
         if (authModeInput.text.isNullOrBlank()) {
-            authModeLayout.error = "Auth mode is required"
+            authModeLayout.error = getString(R.string.ai_assistant_auth_mode_required)
             hasError = true
         }
         if (reasoningInput.text.isNullOrBlank()) {
-            reasoningLayout.error = "Reasoning effort is required"
+            reasoningLayout.error = getString(R.string.ai_assistant_reasoning_effort_required)
             hasError = true
         }
         if (contextWindow == null || contextWindow <= 0L) {
-            contextWindowLayout.error = "Enter a positive context window"
+            contextWindowLayout.error = getString(R.string.ai_assistant_context_window_positive)
             hasError = true
         }
         if (autoCompact == null || autoCompact <= 0L) {
-            autoCompactLayout.error = "Enter a positive token limit"
+            autoCompactLayout.error = getString(R.string.ai_assistant_token_limit_positive)
             hasError = true
         }
         if (hasError) {
@@ -295,6 +299,21 @@ class CodexCliConfigDialog(
                 normalizedModels.toList()
             )
         )
+    }
+
+    private fun authModeLabel(mode: CodexCliAuthMode): String {
+        return when (mode) {
+            CodexCliAuthMode.ENV_KEY -> getString(R.string.ai_assistant_codex_auth_mode_env_key)
+            CodexCliAuthMode.OPENAI_AUTH -> getString(R.string.ai_assistant_codex_auth_mode_openai_auth)
+        }
+    }
+
+    private fun authModeFromLabel(label: String?): CodexCliAuthMode {
+        return when (label) {
+            getString(R.string.ai_assistant_codex_auth_mode_env_key) -> CodexCliAuthMode.ENV_KEY
+            getString(R.string.ai_assistant_codex_auth_mode_openai_auth) -> CodexCliAuthMode.OPENAI_AUTH
+            else -> CodexCliAuthMode.fromDisplayName(label)
+        }
     }
 
     private fun clearErrors() {

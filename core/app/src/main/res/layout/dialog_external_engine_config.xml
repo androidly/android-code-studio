@@ -8,7 +8,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Legacy external-engine UI removed. Use Codex CLI settings instead."
+        android:text="@string/external_engine_legacy_removed"
         android:textAppearance="?attr/textAppearanceBodyMedium" />
 
 </LinearLayout>

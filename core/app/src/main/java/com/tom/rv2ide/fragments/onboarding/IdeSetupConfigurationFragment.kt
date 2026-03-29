@@ -41,7 +41,6 @@ import androidx.core.widget.doAfterTextChanged
 import com.termux.shared.termux.repository.TermuxPackageRepository
 import com.github.appintro.SlidePolicy
 import com.tom.rv2ide.R
-import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
 import com.tom.rv2ide.databinding.LayoutOnboardngSetupConfigBinding
 import com.tom.rv2ide.models.IdeSetupArgument
 import com.tom.rv2ide.resources.R.string
@@ -107,7 +106,6 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
         ndkVersionLayout.isEnabled = isChecked
         installGit.isEnabled = isChecked
         installOpenssh.isEnabled = isChecked
-        installCodexCli.isEnabled = isChecked
       }
 
       val sdkVersions = SdkVersion.entries.map { "SDK ${it.version}" }.reversed()
@@ -182,18 +180,6 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
       args.setArgument(IdeSetupArgument.WITH_OPENSSH)
     }
     return args.toTypedArray()
-  }
-
-  fun buildPostSetupCommand(): String? {
-    persistConfiguredRegistries()
-    if (!isAutoInstall() || !content.installCodexCli.isChecked) {
-      return null
-    }
-    CodexTermuxBridge.ensureManagedPreset(
-        context = requireContext(),
-        selectProvider = false,
-    )
-    return CodexTermuxBridge.buildInstallerCommand(requireContext())
   }
 
   private fun persistConfiguredRegistries() {

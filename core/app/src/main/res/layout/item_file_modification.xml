@@ -2,6 +2,7 @@
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
@@ -30,7 +31,7 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:src="@drawable/ic_file"
-            android:contentDescription="File status" />
+            android:contentDescription="@string/file_modification_status_icon_content_description" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -43,15 +44,15 @@
                 android:id="@+id/fileName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="file_name.kt"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                tools:text="@string/file_modification_file_name_preview" />
 
             <TextView
                 android:id="@+id/fileStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Modifying..."
+                android:text="@string/file_modification_status_modifying"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 

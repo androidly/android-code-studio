@@ -85,7 +85,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:minHeight="40dp"
-                android:text="Switch" />
+                android:text="@string/ai_assistant_session_switch" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/sessionRowDeleteButton"
@@ -94,7 +94,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:minHeight="40dp"
-                android:text="Delete"
+                android:text="@string/delete"
                 android:textColor="?attr/colorError"
                 app:strokeColor="?attr/colorError" />
 

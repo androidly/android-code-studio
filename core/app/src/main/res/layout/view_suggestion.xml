@@ -2,6 +2,7 @@
 <com.google.android.material.card.MaterialCardView 
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:elevation="12dp"
@@ -32,13 +33,14 @@
             android:fontFamily="monospace"
             android:letterSpacing="0.02"
             android:maxLines="1"
-            android:ellipsize="end"/>
+            android:ellipsize="end"
+            tools:text="@string/editor_suggestion_preview"/>
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/hintText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Tab"
+            android:text="@string/editor_suggestion_tab_hint"
             android:textSize="10sp"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:alpha="0.6"

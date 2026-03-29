@@ -39,11 +39,19 @@ fun syncLocalPropertiesIfChanged(source: File, target: File) {
 pluginManagement {
   includeBuild("../build-logic")
 
+  resolutionStrategy {
+    eachPlugin {
+      if (requested.id.id in setOf("com.android.application", "com.android.library")) {
+        useModule("com.android.tools.build:gradle:8.13.0")
+      }
+    }
+  }
+
   repositories {
-    // maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
-    // maven { url = uri("https://maven.aliyun.com/repository/central") }
-    // maven { url = uri("https://maven.aliyun.com/repository/google") }
-    
+    mavenLocal()
+    maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+    maven { url = uri("https://maven.aliyun.com/repository/central") }
+    maven { url = uri("https://maven.aliyun.com/repository/google") }
     gradlePluginPortal()
     google()
     mavenCentral()
@@ -52,8 +60,9 @@ pluginManagement {
 
 dependencyResolutionManagement {
   repositories {
-    // maven { url = uri("https://maven.aliyun.com/repository/central") }
-    // maven { url = uri("https://maven.aliyun.com/repository/google") }
+    mavenLocal()
+    maven { url = uri("https://maven.aliyun.com/repository/central") }
+    maven { url = uri("https://maven.aliyun.com/repository/google") }
     google()
     mavenCentral()
   }

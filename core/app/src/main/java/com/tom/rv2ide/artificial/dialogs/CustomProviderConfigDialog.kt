@@ -83,7 +83,7 @@ class CustomProviderConfigDialog(
     }
 
     private fun setupApiTypeDropdown() {
-        val apiTypes = CustomProviderApiType.displayNames()
+        val apiTypes = CustomProviderApiType.entries.map(::apiTypeLabel)
         apiTypeInput.setAdapter(
             ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, apiTypes)
         )
@@ -102,7 +102,10 @@ class CustomProviderConfigDialog(
         profileNameInput.setText(loadedProfile?.name.orEmpty())
         baseUrlInput.setText(loadedProfile?.baseUrl.orEmpty())
         apiKeyInput.setText(loadedProfile?.apiKey.orEmpty())
-        apiTypeInput.setText(loadedProfile?.apiType?.displayName ?: CustomProviderApiType.OPENAI_CHAT.displayName, false)
+        apiTypeInput.setText(
+            apiTypeLabel(loadedProfile?.apiType ?: CustomProviderApiType.OPENAI_CHAT),
+            false
+        )
         modelInput.setText(loadedProfile?.modelId.orEmpty(), false)
 
         val suggestions = if (loadedModels.isNotEmpty()) {
@@ -112,9 +115,12 @@ class CustomProviderConfigDialog(
         }
         updateModelSuggestions(suggestions)
         statusText.text = if (createNew) {
-            "Create a reusable custom provider profile. NewAPI-style gateways can fetch models from /v1/models."
+            getString(R.string.ai_assistant_custom_provider_create_status)
         } else {
-            "Editing ${loadedProfile?.name ?: "custom provider"}. You can fetch models or type a model ID manually."
+            getString(
+                R.string.ai_assistant_custom_provider_edit_status,
+                loadedProfile?.name ?: getString(R.string.ai_assistant_provider_custom)
+            )
         }
         autoFetchAttempted = false
         maybeAutoFetchModels()
@@ -128,11 +134,11 @@ class CustomProviderConfigDialog(
 
             var hasError = false
             if (baseUrl.isBlank()) {
-                baseUrlLayout.error = "Base URL is required"
+                baseUrlLayout.error = getString(R.string.ai_assistant_base_url_required)
                 hasError = true
             }
             if (apiKey.isBlank()) {
-                apiKeyLayout.error = "API key is required"
+                apiKeyLayout.error = getString(R.string.ai_assistant_api_key_required)
                 hasError = true
             }
             if (hasError) {
@@ -179,7 +185,11 @@ class CustomProviderConfigDialog(
 
     private fun fetchModels(baseUrl: String, apiKey: String) {
         setLoading(true)
-        statusText.text = "Fetching models from ${CustomProviderConfig.modelsEndpoint(baseUrl)}"
+        statusText.text =
+            getString(
+                R.string.ai_assistant_fetching_models_from,
+                CustomProviderConfig.modelsEndpoint(baseUrl)
+            )
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -192,9 +202,9 @@ class CustomProviderConfigDialog(
                     modelInput.setText(models.first(), false)
                 }
 
-                statusText.text = "Fetched ${models.size} models"
+                statusText.text = getString(R.string.ai_assistant_fetched_models_count, models.size)
             } catch (error: Exception) {
-                statusText.text = error.message ?: "Failed to fetch models"
+                statusText.text = error.message ?: getString(R.string.ai_assistant_fetch_models_failed)
             } finally {
                 setLoading(false)
             }
@@ -208,27 +218,27 @@ class CustomProviderConfigDialog(
         val baseUrl = baseUrlInput.text?.toString().orEmpty().trim()
         val apiKey = apiKeyInput.text?.toString().orEmpty().trim()
         val modelId = modelInput.text?.toString().orEmpty().trim()
-        val apiType = CustomProviderApiType.fromDisplayName(apiTypeInput.text?.toString())
+        val apiType = apiTypeFromLabel(apiTypeInput.text?.toString())
 
         var hasError = false
         if (profileName.isBlank()) {
-            profileNameLayout.error = "Profile name is required"
+            profileNameLayout.error = getString(R.string.ai_assistant_profile_name_required)
             hasError = true
         }
         if (baseUrl.isBlank()) {
-            baseUrlLayout.error = "Base URL is required"
+            baseUrlLayout.error = getString(R.string.ai_assistant_base_url_required)
             hasError = true
         }
         if (apiKey.isBlank()) {
-            apiKeyLayout.error = "API key is required"
+            apiKeyLayout.error = getString(R.string.ai_assistant_api_key_required)
             hasError = true
         }
         if (modelId.isBlank()) {
-            modelLayout.error = "Model ID is required"
+            modelLayout.error = getString(R.string.ai_assistant_model_id_required)
             hasError = true
         }
         if (apiTypeInput.text.isNullOrBlank()) {
-            apiTypeLayout.error = "API type is required"
+            apiTypeLayout.error = getString(R.string.ai_assistant_api_type_required)
             hasError = true
         }
 
@@ -261,6 +271,29 @@ class CustomProviderConfigDialog(
         modelInput.setAdapter(
             ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, models)
         )
+    }
+
+    private fun apiTypeLabel(apiType: CustomProviderApiType): String {
+        return when (apiType) {
+            CustomProviderApiType.OPENAI_CHAT ->
+                getString(R.string.ai_assistant_custom_provider_api_type_openai_chat)
+            CustomProviderApiType.OPENAI_RESPONSES ->
+                getString(R.string.ai_assistant_custom_provider_api_type_openai_responses)
+            CustomProviderApiType.CLAUDE_MESSAGES ->
+                getString(R.string.ai_assistant_custom_provider_api_type_claude_messages)
+        }
+    }
+
+    private fun apiTypeFromLabel(label: String?): CustomProviderApiType {
+        return when (label) {
+            getString(R.string.ai_assistant_custom_provider_api_type_openai_chat) ->
+                CustomProviderApiType.OPENAI_CHAT
+            getString(R.string.ai_assistant_custom_provider_api_type_openai_responses) ->
+                CustomProviderApiType.OPENAI_RESPONSES
+            getString(R.string.ai_assistant_custom_provider_api_type_claude_messages) ->
+                CustomProviderApiType.CLAUDE_MESSAGES
+            else -> CustomProviderApiType.fromDisplayName(label)
+        }
     }
 
     private fun buildSuggestedModels(selectedModel: String): List<String> {

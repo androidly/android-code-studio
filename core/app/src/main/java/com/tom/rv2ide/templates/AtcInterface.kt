@@ -136,7 +136,7 @@ class TemplateGridAdapter(
 
   override fun onBindViewHolder(holder: TemplateViewHolder, position: Int) {
     val template = templates[position]
-    holder.templateName.text = template.displayName
+    holder.templateName.text = template.getDisplayName(context)
 
     // Get image resource by template class name (e.g., basic_activity.png)
     val imageResId =

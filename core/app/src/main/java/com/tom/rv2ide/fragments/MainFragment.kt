@@ -23,6 +23,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -84,15 +85,15 @@ class MainFragment : BaseFragment() {
     // Common git clone options
     private val COMMON_GIT_OPTIONS =
         listOf(
-            GitOption("--depth 1", "Shallow clone (faster)"),
-            GitOption("--single-branch", "Clone single branch only"),
-            GitOption("--recursive", "Clone with submodules"),
-            GitOption("--no-tags", "Don't fetch tags"),
-            GitOption("--bare", "Create bare repository"),
+            GitOption("--depth 1", R.string.main_git_option_shallow_clone),
+            GitOption("--single-branch", R.string.main_git_option_single_branch),
+            GitOption("--recursive", R.string.main_git_option_recursive),
+            GitOption("--no-tags", R.string.main_git_option_no_tags),
+            GitOption("--bare", R.string.main_git_option_bare),
         )
   }
 
-  data class GitOption(val flag: String, val description: String)
+  data class GitOption(val flag: String, @StringRes val descriptionRes: Int)
 
   override fun onCreateView(
       inflater: LayoutInflater,
@@ -284,7 +285,12 @@ class MainFragment : BaseFragment() {
   }
 
   private fun showProjectOptionsDialog(project: File, onActionComplete: () -> Unit) {
-    val options = arrayOf("Backup project", "Delete project", "Rename")
+    val options =
+        arrayOf(
+            getString(R.string.main_project_option_backup),
+            getString(string.delete),
+            getString(string.rename),
+        )
 
     val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
     builder.setTitle(project.name)
@@ -441,16 +447,16 @@ class MainFragment : BaseFragment() {
     val backupFile = File(backupDir, backupFileName)
 
     val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
-    val binding = LayoutDialogProgressBinding.inflate(layoutInflater)
+      val binding = LayoutDialogProgressBinding.inflate(layoutInflater)
 
-    binding.message.visibility = View.VISIBLE
-    binding.message.text = "Backing up project..."
-    binding.progress.isIndeterminate = true
+      binding.message.visibility = View.VISIBLE
+      binding.message.text = getString(R.string.main_project_backup_progress_message)
+      binding.progress.isIndeterminate = true
 
-    builder.setTitle("Backup in Progress")
-    builder.setMessage("Creating backup of ${project.name}")
-    builder.setView(binding.root)
-    builder.setCancelable(false)
+      builder.setTitle(R.string.main_project_backup_in_progress_title)
+      builder.setMessage(getString(R.string.main_project_backup_in_progress_message, project.name))
+      builder.setView(binding.root)
+      builder.setCancelable(false)
 
     val dialog = builder.show()
 
@@ -483,11 +489,11 @@ class MainFragment : BaseFragment() {
           dialog.dismiss()
 
           val successBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
-          successBuilder.setTitle("Backup Completed")
+          successBuilder.setTitle(R.string.main_project_backup_completed_title)
           successBuilder.setMessage(
-              "Project backed up successfully!\n\nLocation:\n${backupFile.absolutePath}"
+              getString(R.string.main_project_backup_completed_message, backupFile.absolutePath)
           )
-          successBuilder.setPositiveButton("OK") { d, _ ->
+          successBuilder.setPositiveButton(android.R.string.ok) { d, _ ->
             d.dismiss()
             onComplete()
           }
@@ -499,9 +505,14 @@ class MainFragment : BaseFragment() {
           dialog.dismiss()
 
           val errorBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
-          errorBuilder.setTitle("Backup Failed")
-          errorBuilder.setMessage("Failed to backup project: ${e.localizedMessage}")
-          errorBuilder.setPositiveButton("OK", null)
+          errorBuilder.setTitle(R.string.main_project_backup_failed_title)
+          errorBuilder.setMessage(
+              getString(
+                  R.string.main_project_backup_failed_message,
+                  e.localizedMessage ?: e.javaClass.simpleName,
+              )
+          )
+          errorBuilder.setPositiveButton(android.R.string.ok, null)
           errorBuilder.show()
         }
       }
@@ -527,11 +538,11 @@ class MainFragment : BaseFragment() {
     val binding = LayoutDialogProgressBinding.inflate(layoutInflater)
 
     binding.message.visibility = View.VISIBLE
-    binding.message.text = "Deleting project..."
+    binding.message.text = getString(R.string.main_project_delete_progress_message)
     binding.progress.isIndeterminate = true
 
-    builder.setTitle("Delete in Progress")
-    builder.setMessage("Deleting ${project.name}")
+    builder.setTitle(R.string.main_project_delete_in_progress_title)
+    builder.setMessage(getString(R.string.main_project_delete_in_progress_message, project.name))
     builder.setView(binding.root)
     builder.setCancelable(false)
 
@@ -602,7 +613,7 @@ class MainFragment : BaseFragment() {
 
     COMMON_GIT_OPTIONS.forEach { option ->
       val chip = Chip(requireContext())
-      chip.text = option.description
+      chip.text = getString(option.descriptionRes)
       chip.isCheckable = true
       chip.isCheckedIconVisible = true
       chip.tag = option.flag

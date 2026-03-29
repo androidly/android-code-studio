@@ -28,11 +28,11 @@ import androidx.lifecycle.ViewModel
  */
 class IndexingBannerViewModel : ViewModel() {
 
-    private val _title = MutableLiveData<String>("Indexing project")
-    val title: LiveData<String> = _title
+    private val _title = MutableLiveData<String?>(null)
+    val title: LiveData<String?> = _title
 
-    private val _message = MutableLiveData<String>("Preparing...")
-    val message: LiveData<String> = _message
+    private val _message = MutableLiveData<String?>(null)
+    val message: LiveData<String?> = _message
 
     private val _isVisible = MutableLiveData<Boolean>(false)
     val isVisible: LiveData<Boolean> = _isVisible

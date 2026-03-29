@@ -179,13 +179,13 @@ object ColorPickerDialog {
         }
 
         MaterialAlertDialogBuilder(context)
-            .setTitle("Select Color")
+            .setTitle(R.string.asset_studio_select_color)
             .setView(dialogView)
-            .setPositiveButton("OK") { dialog, _ ->
+            .setPositiveButton(android.R.string.ok) { dialog, _ ->
                 onColorSelected(currentColor, selectedDynamicColor)
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 }

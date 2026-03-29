@@ -21,6 +21,7 @@ import android.view.LayoutInflater
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.tom.rv2ide.R
+import com.tom.rv2ide.app.BaseApplication
 import com.tom.rv2ide.databinding.LayoutTextSizeSliderBinding
 import com.tom.rv2ide.editor.schemes.IDEColorScheme
 import com.tom.rv2ide.editor.schemes.IDEColorSchemeProvider
@@ -273,12 +274,15 @@ private class NonPrintablePaintingFlags(
 ) : PropertyBasedMultiChoicePreference() {
 
   override fun getProperties(): Map<String, KMutableProperty0<Boolean>> {
+    val context = BaseApplication.getBaseInstance()
     return linkedMapOf(
-        "Leading" to EditorPreferences::drawLeadingWs,
-        "Trailing" to EditorPreferences::drawTrailingWs,
-        "Inner" to EditorPreferences::drawInnerWs,
-        "Empty lines" to EditorPreferences::drawEmptyLineWs,
-        "Line breaks" to EditorPreferences::drawLineBreak,
+        context.getString(R.string.editor_non_printable_leading) to EditorPreferences::drawLeadingWs,
+        context.getString(R.string.editor_non_printable_trailing) to EditorPreferences::drawTrailingWs,
+        context.getString(R.string.editor_non_printable_inner) to EditorPreferences::drawInnerWs,
+        context.getString(R.string.editor_non_printable_empty_lines) to
+            EditorPreferences::drawEmptyLineWs,
+        context.getString(R.string.editor_non_printable_line_breaks) to
+            EditorPreferences::drawLineBreak,
     )
   }
 }
@@ -381,7 +385,7 @@ private class UseCustomFont(
     
     entries.add(
       PreferenceChoices.Entry(
-        label = "JetBrains Mono (Default)",
+        label = preference.context.getString(R.string.editor_font_jetbrains_mono_default),
         _isChecked = currentFont == null,
         data = ""
       )
@@ -399,7 +403,7 @@ private class UseCustomFont(
     
     entries.add(
       PreferenceChoices.Entry(
-        label = "+ Add New Font",
+        label = preference.context.getString(R.string.editor_font_add_new),
         _isChecked = false,
         data = "ADD_NEW"
       )
@@ -419,11 +423,16 @@ private class UseCustomFont(
       }
       null -> {
         EditorPreferences.selectedCustomFont = null
-        Toast.makeText(preference.context, "Using default font", Toast.LENGTH_SHORT).show()
+        Toast.makeText(preference.context, R.string.editor_font_using_default, Toast.LENGTH_SHORT)
+            .show()
       }
       else -> {
         EditorPreferences.selectedCustomFont = entry.data as String
-        Toast.makeText(preference.context, "Font selected: ${entry.label}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            preference.context,
+            preference.context.getString(R.string.editor_font_selected, entry.label),
+            Toast.LENGTH_SHORT,
+        ).show()
       }
     }
   }
@@ -438,11 +447,15 @@ private class UseCustomFont(
     try {
       val activity = preference.context as? Activity
       activity?.startActivityForResult(
-          Intent.createChooser(intent, "Select Font File"),
+          Intent.createChooser(intent, preference.context.getString(R.string.editor_font_select_file)),
           PICK_FONT_REQUEST
       )
     } catch (e: Exception) {
-      Toast.makeText(preference.context, "Error opening file picker: ${e.message}", Toast.LENGTH_SHORT).show()
+      Toast.makeText(
+          preference.context,
+          preference.context.getString(R.string.editor_font_picker_error, e.message.orEmpty()),
+          Toast.LENGTH_SHORT,
+      ).show()
     }
   }
 }

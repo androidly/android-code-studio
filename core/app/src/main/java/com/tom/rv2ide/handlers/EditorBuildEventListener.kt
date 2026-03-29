@@ -176,14 +176,9 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   /** Show dialog when NDK is not installed but required */
   private fun showNdkNotInstalledDialog(context: Context, onDismiss: () -> Unit = {}) {
     MaterialAlertDialogBuilder(context)
-        .setTitle("NDK Not Found")
-        .setMessage(
-            "A compatible NDK (version 28.2.13676358) is not installed.\n\n" +
-                "Native code features will be disabled for this project.\n\n" +
-                "To enable native development, please install NDK version 28.2.13676358 " +
-                "open a terminal then run: 'idesetup -y -c -wn'."
-        )
-        .setPositiveButton("OK") { dialog, _ ->
+        .setTitle(R.string.ndk_not_found_title)
+        .setMessage(R.string.ndk_not_found_message)
+        .setPositiveButton(android.R.string.ok) { dialog, _ ->
           dialog.dismiss()
           onDismiss()
         }
@@ -204,11 +199,19 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   private fun checkActivity(action: String): EditorHandlerActivity? {
     if (!enabled) return null
 
-    return _activity.also {
-      if (it == null) {
-        log.warn("[{}] Activity reference has been destroyed!", action)
-        enabled = false
-      }
+    val activity = _activity
+    if (activity == null) {
+      log.warn("[{}] Activity reference has been destroyed!", action)
+      enabled = false
+      return null
     }
+
+    if (!activity.isUiActive()) {
+      log.debug("[{}] Dropping build event because editor UI is no longer active", action)
+      enabled = false
+      return null
+    }
+
+    return activity
   }
 }

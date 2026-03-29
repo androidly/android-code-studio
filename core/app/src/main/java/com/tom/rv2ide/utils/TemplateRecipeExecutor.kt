@@ -20,6 +20,9 @@ package com.tom.rv2ide.utils
 import com.blankj.utilcode.util.ResourceUtils
 import com.tom.rv2ide.app.IDEApplication
 import com.tom.rv2ide.templates.RecipeExecutor
+import com.tom.rv2ide.templates.normalizeGeneratedText
+import com.tom.rv2ide.templates.normalizeGeneratedTextFile
+import com.tom.rv2ide.templates.normalizeGeneratedTextTree
 import java.io.File
 import java.io.InputStream
 
@@ -35,11 +38,12 @@ class TemplateRecipeExecutor : RecipeExecutor {
 
   override fun copy(source: File, dest: File) {
     source.copyTo(dest)
+    normalizeGeneratedTextFile(dest)
   }
 
   override fun save(source: String, dest: File) {
     dest.parentFile?.mkdirs()
-    dest.writeText(source)
+    dest.writeText(normalizeGeneratedText(source))
   }
 
   override fun openAsset(path: String): InputStream {
@@ -52,9 +56,11 @@ class TemplateRecipeExecutor : RecipeExecutor {
 
   override fun copyAsset(path: String, dest: File) {
     openAsset(path).use { it.copyTo(dest.outputStream()) }
+    normalizeGeneratedTextFile(dest)
   }
 
   override fun copyAssetsRecursively(path: String, destDir: File) {
     ResourceUtils.copyFileFromAssets(path, destDir.absolutePath)
+    normalizeGeneratedTextTree(destDir)
   }
 }

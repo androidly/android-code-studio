@@ -2,6 +2,7 @@
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginVertical="6dp"
@@ -25,16 +26,16 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="origin"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="?android:textColorPrimary"/>
+                android:textColor="?android:textColorPrimary"
+                tools:text="@string/git_item_remote_name_preview"/>
             
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonRemove"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Remove"
+                android:text="@string/git_remove_remote_action"
                 android:textSize="12sp"
                 style="@style/Widget.Material3.Button.OutlinedButton"/>
         </LinearLayout>
@@ -43,11 +44,11 @@
             android:id="@+id/textRemoteUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="https://github.com/user/repo.git"
             android:textSize="14sp"
             android:textColor="?android:textColorSecondary"
             android:layout_marginTop="8dp"
             android:ellipsize="middle"
-            android:singleLine="true"/>
+            android:singleLine="true"
+            tools:text="@string/git_item_remote_url_preview"/>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

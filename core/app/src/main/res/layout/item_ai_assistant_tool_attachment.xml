@@ -80,7 +80,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:fontFamily="monospace"
-            android:text="Command"
+            android:text="@string/ai_assistant_tool_command_label"
             android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
             android:textStyle="bold"
             android:visibility="gone" />
@@ -113,7 +113,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:fontFamily="monospace"
-            android:text="Output"
+            android:text="@string/ai_assistant_tool_output_label"
             android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
             android:textStyle="bold"
             android:visibility="gone" />

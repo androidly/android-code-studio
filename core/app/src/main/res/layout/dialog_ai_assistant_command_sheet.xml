@@ -11,7 +11,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Assistant Commands"
+        android:text="@string/ai_assistant_command_sheet_title"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
         android:textStyle="bold" />
 
@@ -20,7 +20,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:layout_marginBottom="10dp"
-        android:text="Session, history, and run controls. Use Run for supported actions or Insert to stage a command in the composer."
+        android:text="@string/ai_assistant_command_sheet_summary"
         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
         android:textColor="?attr/colorOutline" />
 

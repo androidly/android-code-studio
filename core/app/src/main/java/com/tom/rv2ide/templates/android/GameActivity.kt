@@ -26,6 +26,7 @@ import com.tom.androidcodestudio.project.manager.SdkVersionHelper
 import com.tom.androidcodestudio.project.manager.builder.*
 import com.tom.androidcodestudio.project.manager.builder.module.*
 import com.tom.androidcodestudio.project.manager.builder.toplevel.*
+import com.tom.rv2ide.R
 import com.tom.rv2ide.templates.*
 import com.tom.rv2ide.templates.AtcInterface
 import com.tom.rv2ide.templates.android.etc.NativeCpp.Check.getHighestCMakeVersion
@@ -44,6 +45,7 @@ import kotlinx.coroutines.withContext
 
 class GameActivity : Template {
   override val displayName = "Game Activity"
+  override val displayNameRes = R.string.template_name_game_activity
   override val templateType = Template.TemplateType.ACTIVITY
 
   private val projectStructBuilder = ProjectStructBuilder()
@@ -80,7 +82,15 @@ class GameActivity : Template {
 
           // Show toast on main thread
           withContext(Dispatchers.Main) {
-            Toast.makeText(context, "Creating native c++...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.template_creation_in_progress,
+                        context.getString(displayNameRes),
+                    ),
+                    Toast.LENGTH_SHORT,
+                )
+                .show()
           }
 
           val packageHelper =
@@ -490,7 +500,13 @@ class GameActivity : Template {
         } catch (e: Exception) {
           Log.e("GameActivity", "Error creating project", e)
           withContext(Dispatchers.Main) {
-            listener?.onTemplateCreated(false, "Error creating project: ${e.message}")
+            listener?.onTemplateCreated(
+                false,
+                context.getString(
+                    com.tom.rv2ide.R.string.template_creation_failed,
+                    e.message.orEmpty(),
+                ),
+            )
           }
         }
       }
@@ -514,6 +530,7 @@ class GameActivity : Template {
       // Copy gradle/wrapper folder
       val wrapperDestDir = File(projectRoot, "gradle/wrapper")
       copyAssetFolder(context, "$ASSETS_GRADLE_PATH/wrapper", wrapperDestDir)
+      com.tom.rv2ide.templates.normalizeProjectGradleWrapper(projectRoot)
 
       Log.d("GameActivity", "Wrapper files copied successfully")
     } catch (e: Exception) {
@@ -590,6 +607,7 @@ class GameActivity : Template {
       val outputStream = FileOutputStream(destFile)
 
       inputStream.use { input -> outputStream.use { output -> input.copyTo(output) } }
+      com.tom.rv2ide.templates.normalizeGeneratedTextFile(destFile)
 
       Log.d("GameActivity", "Copied: $assetPath -> ${destFile.absolutePath}")
     } catch (e: Exception) {

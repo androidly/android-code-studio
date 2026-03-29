@@ -93,7 +93,7 @@ class BranchesFragment : Fragment() {
         
         viewModel.currentBranch.observe(viewLifecycleOwner) { branch ->
             currentBranch = branch
-            binding.textCurrentBranch.text = "Current: $branch"
+            binding.textCurrentBranch.text = getString(R.string.git_branches_current_format, branch)
             adapter.notifyDataSetChanged()
         }
         
@@ -120,33 +120,33 @@ class BranchesFragment : Fragment() {
         val editText = dialogView.findViewById<TextInputEditText>(R.id.editTextBranchName)
         
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Create New Branch")
+            .setTitle(R.string.git_branches_create_title)
             .setView(dialogView)
-            .setPositiveButton("Create") { _, _ ->
+            .setPositiveButton(R.string.git_branches_create_action) { _, _ ->
                 val branchName = editText.text.toString().trim()
                 if (branchName.isNotBlank()) {
                     viewModel.createBranch(branchName)
                 } else {
-                    Snackbar.make(binding.root, "Branch name cannot be empty", Snackbar.LENGTH_SHORT).show()
+                    Snackbar.make(binding.root, R.string.git_branches_name_required, Snackbar.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
     
     private fun showDeleteConfirmation(branch: String) {
         if (branch == currentBranch) {
-            Snackbar.make(binding.root, "Cannot delete current branch", Snackbar.LENGTH_SHORT).show()
+            Snackbar.make(binding.root, R.string.git_branches_delete_current_error, Snackbar.LENGTH_SHORT).show()
             return
         }
         
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Delete Branch")
-            .setMessage("Are you sure you want to delete branch '$branch'?")
-            .setPositiveButton("Delete") { _, _ ->
+            .setTitle(R.string.git_branches_delete_title)
+            .setMessage(getString(R.string.git_branches_delete_message, branch))
+            .setPositiveButton(R.string.file_browser_delete_action) { _, _ ->
                 viewModel.deleteBranch(branch)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
     

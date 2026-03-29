@@ -25,6 +25,7 @@ import androidx.annotation.DrawableRes
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
+import com.tom.rv2ide.R
 import com.tom.rv2ide.databinding.LayoutIndexingBannerBinding
 
 /*
@@ -55,8 +56,8 @@ class IndexingBanner private constructor(
 
     // Inflate layout with data binding
     binding = LayoutIndexingBannerBinding.inflate(LayoutInflater.from(activity)).apply {
-      title = initialTitle ?: "Indexing project..."
-      message = initialMessage ?: "Preparing..."
+      title = initialTitle ?: activity.getString(R.string.indexing_banner_title_default)
+      message = initialMessage ?: activity.getString(R.string.indexing_banner_message_default)
       
       // Set icon manually
       this@IndexingBanner.iconResId?.let {

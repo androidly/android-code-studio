@@ -61,7 +61,7 @@
                 android:id="@+id/titleTextView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@{title ?? `Indexing project`}"
+                android:text="@{title != null ? title : @string/indexing_banner_title_default}"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="?attr/colorOnBackground" />
@@ -71,7 +71,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="@{message ?? `Preparing...`}"
+                android:text="@{message != null ? message : @string/indexing_banner_message_default}"
                 android:textSize="13sp"
                 android:textColor="?attr/colorOnBackground" />
 

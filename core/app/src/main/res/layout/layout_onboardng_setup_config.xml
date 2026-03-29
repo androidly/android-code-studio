@@ -85,15 +85,6 @@
     app:layout_constraintStart_toStartOf="@id/auto_install_switch"
     app:layout_constraintTop_toBottomOf="@id/install_git" />
 
-  <com.google.android.material.checkbox.MaterialCheckBox
-    android:id="@+id/install_codex_cli"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="12dp"
-    android:text="@string/action_install_codex_cli"
-    app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-    app:layout_constraintTop_toBottomOf="@id/install_openssh" />
-
   <com.google.android.material.textfield.TextInputLayout
     android:id="@+id/package_repository_url_layout"
     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -107,7 +98,7 @@
     app:boxCornerRadiusBottomEnd="20dp"
     app:layout_constraintEnd_toEndOf="@id/auto_install_switch"
     app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-    app:layout_constraintTop_toBottomOf="@id/install_codex_cli">
+    app:layout_constraintTop_toBottomOf="@id/install_openssh">
 
     <com.google.android.material.textfield.TextInputEditText
       android:id="@+id/package_repository_url"

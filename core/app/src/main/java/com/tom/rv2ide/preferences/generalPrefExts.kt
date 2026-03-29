@@ -126,7 +126,11 @@ class UiMode(
     AppRestartDialog.show(preference.context) { restart ->
         if (restart) { 
             GeneralPreferences.uiMode = (entry?.data as? Int?) ?: AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            android.widget.Toast.makeText(preference.context, "Restarting...", 0).show()
+            android.widget.Toast.makeText(
+                preference.context,
+                MainR.string.preferences_restarting,
+                0,
+            ).show()
             Handler(Looper.getMainLooper()).postDelayed({ AppRestartDialog.restartApp(preference.context) }, 1000)
         }
     }
@@ -165,7 +169,11 @@ class ThemeSelector(
     AppRestartDialog.show(preference.context) { restart ->
         if (restart) { 
             GeneralPreferences.selectedTheme = (entry?.data as? IDETheme?)?.name ?: IDETheme.DEFAULT.name
-            android.widget.Toast.makeText(preference.context, "Restarting...", 0).show()
+            android.widget.Toast.makeText(
+                preference.context,
+                MainR.string.preferences_restarting,
+                0,
+            ).show()
             Handler(Looper.getMainLooper()).postDelayed({ AppRestartDialog.restartApp(preference.context) }, 1000)
         }
     }
@@ -192,7 +200,11 @@ class Snowfall(
     AppRestartDialog.show(preference.context) { restart ->
       if (restart) {
         GeneralPreferences.snowfallOverlay = newSnowfallValue
-        android.widget.Toast.makeText(preference.context, "Restarting...", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(
+            preference.context,
+            MainR.string.preferences_restarting,
+            android.widget.Toast.LENGTH_SHORT,
+        ).show()
         Handler(Looper.getMainLooper()).postDelayed({ 
           AppRestartDialog.restartApp(preference.context) 
         }, 1000)

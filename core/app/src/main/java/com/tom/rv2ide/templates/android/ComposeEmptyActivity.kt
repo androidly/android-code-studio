@@ -26,6 +26,7 @@ import com.tom.androidcodestudio.project.manager.SdkVersionHelper
 import com.tom.androidcodestudio.project.manager.builder.*
 import com.tom.androidcodestudio.project.manager.builder.module.*
 import com.tom.androidcodestudio.project.manager.builder.toplevel.*
+import com.tom.rv2ide.R
 import com.tom.rv2ide.templates.*
 import com.tom.rv2ide.templates.AtcInterface
 import java.io.File
@@ -41,6 +42,7 @@ import com.tom.rv2ide.templates.preferences.Options
 
 class ComposeEmptyActivity : Template {
   override val displayName = "Compose Activity"
+  override val displayNameRes = R.string.template_name_compose_activity
   override val templateType = Template.TemplateType.ACTIVITY
 
   private val projectStructBuilder = ProjectStructBuilder()
@@ -70,7 +72,15 @@ class ComposeEmptyActivity : Template {
 
           // Show toast on main thread
           withContext(Dispatchers.Main) {
-            Toast.makeText(context, "Creating Compose Empty Activity...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.template_creation_in_progress,
+                        context.getString(displayNameRes),
+                    ),
+                    Toast.LENGTH_SHORT,
+                )
+                .show()
           }
 
           val packageHelper =
@@ -476,7 +486,13 @@ class ComposeEmptyActivity : Template {
         } catch (e: Exception) {
           Log.e("ComposeEmptyActivity", "Error creating project", e)
           withContext(Dispatchers.Main) {
-            listener?.onTemplateCreated(false, "Error creating project: ${e.message}")
+            listener?.onTemplateCreated(
+                false,
+                context.getString(
+                    com.tom.rv2ide.R.string.template_creation_failed,
+                    e.message.orEmpty(),
+                ),
+            )
           }
         }
       }
@@ -606,6 +622,7 @@ class ComposeEmptyActivity : Template {
       // Copy gradle/wrapper folder
       val wrapperDestDir = File(projectRoot, "gradle/wrapper")
       copyAssetFolder(context, "$ASSETS_GRADLE_PATH/wrapper", wrapperDestDir)
+      com.tom.rv2ide.templates.normalizeProjectGradleWrapper(projectRoot)
 
       Log.d("ComposeEmptyActivity", "Wrapper files copied successfully")
     } catch (e: Exception) {
@@ -660,6 +677,7 @@ class ComposeEmptyActivity : Template {
       val outputStream = FileOutputStream(destFile)
 
       inputStream.use { input -> outputStream.use { output -> input.copyTo(output) } }
+      com.tom.rv2ide.templates.normalizeGeneratedTextFile(destFile)
 
       Log.d("ComposeEmptyActivity", "Copied: $assetPath -> ${destFile.absolutePath}")
     } catch (e: Exception) {

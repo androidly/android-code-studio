@@ -99,18 +99,18 @@ class ExtractAction(private val context: Context, override val order: Int) : Bas
     val file =
         data.get(File::class.java)
             ?: run {
-              showToast("Could not determine current file")
+              showToast(context.getString(R.string.extract_current_file_unknown))
               return false
             }
 
     if (!isValidFileType(file)) {
-      showToast("File type not supported for string extraction")
+      showToast(context.getString(R.string.extract_file_type_not_supported))
       return false
     }
 
     val cursor = editor.cursor
     if (!cursor.isSelected) {
-      showToast("Please select text to extract")
+      showToast(context.getString(R.string.extract_select_text))
       return false
     }
 
@@ -119,7 +119,7 @@ class ExtractAction(private val context: Context, override val order: Int) : Bas
     val (cleanText, hasQuotes) = processSelectedText(selectedText)
 
     if (!isExtractableString(cleanText)) {
-      showToast("Selected text is not suitable for extraction")
+      showToast(context.getString(R.string.extract_selected_text_not_suitable))
       return false
     }
 
@@ -130,7 +130,7 @@ class ExtractAction(private val context: Context, override val order: Int) : Bas
 
         if (stringsXmlFile == null) {
           withContext(Dispatchers.Main) {
-            showToast("Could not find or create strings.xml file in project")
+            showToast(context.getString(R.string.extract_strings_xml_missing))
           }
           return@launch
         }
@@ -152,11 +152,13 @@ class ExtractAction(private val context: Context, override val order: Int) : Bas
             replaceSelectedText(editor, finalStringName, file, hasQuotes, cursor.left, cursor.right)
           }
         } else {
-          withContext(Dispatchers.Main) { showToast("Failed to add string to strings.xml") }
+          withContext(Dispatchers.Main) { showToast(context.getString(R.string.extract_add_to_xml_failed)) }
         }
       } catch (e: Exception) {
         log.error("Error extracting string to resource", e)
-        withContext(Dispatchers.Main) { showToast("Error: ${e.message}") }
+        withContext(Dispatchers.Main) {
+          showToast(context.getString(R.string.extract_error_message, e.message.orEmpty()))
+        }
       }
     }
 
@@ -209,13 +211,13 @@ class ExtractAction(private val context: Context, override val order: Int) : Bas
       val moduleNames = modules.map { it.name }.toTypedArray()
 
       MaterialAlertDialogBuilder(context)
-          .setTitle("Select Module")
+          .setTitle(R.string.extract_select_module)
           .setItems(moduleNames) { dialog, which ->
             val selectedModule = modules[which]
             onModuleSelected(selectedModule)
             dialog.dismiss()
           }
-          .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+          .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
           .show()
     }
   }
@@ -486,11 +488,11 @@ $newStringEntry
       editor.text.replace(start, end, replacement)
 
       val fileType = file.extension.uppercase()
-      showToast("String extracted to R.string.$stringName in $fileType")
+      showToast(context.getString(R.string.extract_success_message, stringName, fileType))
       log.debug("Replaced selected text with '$replacement'")
     } catch (e: Exception) {
       log.error("Error replacing selected text", e)
-      showToast("Failed to replace selected text")
+      showToast(context.getString(R.string.extract_replace_failed))
     }
   }
 

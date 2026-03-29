@@ -81,7 +81,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     }
 
     if (MB_10 < event.file.length()) {
-      flashError("File is too big!")
+      flashError(com.tom.rv2ide.R.string.file_too_big)
       log.warn(
           "Cannot open {} as it is too big. File size: {} bytes",
           event.file,

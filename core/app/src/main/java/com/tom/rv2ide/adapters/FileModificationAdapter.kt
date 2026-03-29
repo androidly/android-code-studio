@@ -39,6 +39,7 @@ class FileModificationAdapter : RecyclerView.Adapter<FileModificationAdapter.Vie
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
+        val context = holder.itemView.context
         holder.fileName.text = item.fileName
         
         // Add click listener
@@ -48,12 +49,12 @@ class FileModificationAdapter : RecyclerView.Adapter<FileModificationAdapter.Vie
         
         when (item.status) {
             Status.MODIFYING -> {
-                holder.fileStatus.text = "Modifying..."
+                holder.fileStatus.text = context.getString(R.string.file_modification_status_modifying)
                 holder.progressIndicator.visibility = View.VISIBLE
                 holder.statusIcon.visibility = View.GONE
             }
             Status.SUCCESS -> {
-                holder.fileStatus.text = "Modified successfully"
+                holder.fileStatus.text = context.getString(R.string.file_modification_status_success)
                 holder.progressIndicator.visibility = View.GONE
                 holder.statusIcon.visibility = View.VISIBLE
                 holder.statusIcon.setImageResource(android.R.drawable.ic_menu_save)
@@ -62,7 +63,7 @@ class FileModificationAdapter : RecyclerView.Adapter<FileModificationAdapter.Vie
                 )
             }
             Status.FAILED -> {
-                holder.fileStatus.text = "Failed to modify"
+                holder.fileStatus.text = context.getString(R.string.file_modification_status_failed)
                 holder.progressIndicator.visibility = View.GONE
                 holder.statusIcon.visibility = View.VISIBLE
                 holder.statusIcon.setImageResource(android.R.drawable.ic_delete)

@@ -32,7 +32,7 @@ class ProgressDialogHelper(private val context: Context) {
     
     private var dialog: Dialog? = null
     
-    fun show(message: String = "Please wait...") {
+    fun show(message: String = context.getString(R.string.common_please_wait)) {
         dismiss()
         
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_progress, null)

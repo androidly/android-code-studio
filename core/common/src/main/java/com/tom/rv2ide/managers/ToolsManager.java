@@ -61,7 +61,7 @@ public class ToolsManager {
       IJdkDistributionProvider.getInstance().loadDistributions();
 
       writeNoMediaFile();
-      extractAapt2();
+      ensureAapt2Available();
       extractToolingApi();
       extractAndroidJar();
       extractColorScheme(app);
@@ -180,20 +180,29 @@ public class ToolsManager {
   }
 
   private static void extractAapt2() {
-    if (!Environment.AAPT2.exists()) {
-      final var context = BaseApplication.getBaseInstance();
-      final var nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
-      final var sourceAapt2 = new File(nativeLibraryDir, "libaapt2.so");
-      if (sourceAapt2.exists() && sourceAapt2.isFile()) {
-        FilesKt.copyTo(sourceAapt2, Environment.AAPT2, true, ConstantsKt.DEFAULT_BUFFER_SIZE);
-      } else {
-        LOG.error("{} file does not exist! This can be problematic.", sourceAapt2);
-      }
+    final var context = BaseApplication.getBaseInstance();
+    final var nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
+    final var sourceAapt2 = new File(nativeLibraryDir, "libaapt2.so");
+    if (!sourceAapt2.exists() || !sourceAapt2.isFile()) {
+      LOG.error("{} file does not exist! This can be problematic.", sourceAapt2);
+      return;
+    }
+
+    try {
+      // Always refresh the extracted binary so old installs cannot keep using a stale ABI.
+      FilesKt.copyTo(sourceAapt2, Environment.AAPT2, true, ConstantsKt.DEFAULT_BUFFER_SIZE);
+    } catch (Exception error) {
+      LOG.error("Failed to refresh AAPT2 binary from {}", sourceAapt2, error);
+      return;
     }
 
     if (!Environment.AAPT2.canExecute() && !Environment.AAPT2.setExecutable(true)) {
       LOG.error("Cannot set executable permissions to AAPT2 binary");
     }
+  }
+
+  public static synchronized void ensureAapt2Available() {
+    extractAapt2();
   }
 
   private static void extractToolingApi() {

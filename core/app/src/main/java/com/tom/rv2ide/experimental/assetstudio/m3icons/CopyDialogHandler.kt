@@ -48,15 +48,20 @@ object CopyDialogHandler {
         radioDrawable.isChecked = true
 
         MaterialAlertDialogBuilder(context)
-            .setTitle("Copy to")
+            .setTitle(R.string.asset_studio_copy_to)
             .setView(dialogView)
-            .setPositiveButton("Copy") { dialog, _ ->
+            .setPositiveButton(R.string.asset_studio_copy) { dialog, _ ->
                 val fileName = fileNameInput.text.toString().ifEmpty { icon.name }
-                val destination = if (radioDrawable.isChecked) "drawable" else "mipmap"
+                val destination =
+                    if (radioDrawable.isChecked) {
+                        context.getString(R.string.asset_studio_destination_drawable)
+                    } else {
+                        context.getString(R.string.asset_studio_destination_mipmap)
+                    }
                 IconCopier.copyIconToDestination(context, fileName, bitmap, destination, xmlContent)
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -78,11 +83,16 @@ object CopyDialogHandler {
         radioDrawable.isChecked = true
 
         MaterialAlertDialogBuilder(context)
-            .setTitle("Copy to")
+            .setTitle(R.string.asset_studio_copy_to)
             .setView(dialogView)
-            .setPositiveButton("Copy") { dialog, _ ->
+            .setPositiveButton(R.string.asset_studio_copy) { dialog, _ ->
                 val finalFileName = fileNameInput.text.toString().ifEmpty { fileName }
-                val destination = if (radioDrawable.isChecked) "drawable" else "mipmap"
+                val destination =
+                    if (radioDrawable.isChecked) {
+                        context.getString(R.string.asset_studio_destination_drawable)
+                    } else {
+                        context.getString(R.string.asset_studio_destination_mipmap)
+                    }
                 IconCopier.copyIconToDestination(
                     context,
                     finalFileName.replace(" ", "_"),
@@ -94,7 +104,7 @@ object CopyDialogHandler {
                 )
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 }

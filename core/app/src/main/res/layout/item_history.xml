@@ -2,6 +2,7 @@
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
@@ -26,7 +27,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:src="@drawable/ic_history"
-                android:contentDescription="History icon" />
+                android:contentDescription="@string/history_item_icon_content_description" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -39,17 +40,17 @@
                     android:id="@+id/historyTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Created MainActivity.kt"
                     android:textAppearance="?attr/textAppearanceBodyLarge"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    tools:text="@string/history_item_title_preview" />
 
                 <TextView
                     android:id="@+id/historyTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="2 minutes ago"
                     android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    tools:text="@string/history_item_time_preview" />
 
             </LinearLayout>
 
@@ -60,8 +61,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Modified 3 files"
-            android:textAppearance="?attr/textAppearanceBodyMedium" />
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            tools:text="@string/history_item_details_preview" />
 
     </LinearLayout>
 

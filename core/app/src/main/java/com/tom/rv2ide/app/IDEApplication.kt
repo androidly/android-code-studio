@@ -190,7 +190,7 @@ class IDEApplication : TermuxApplication() {
       startActivity(intent)
     } catch (th: Throwable) {
       log.error("Unable to start activity to show changelog", th)
-      flashError("Unable to start activity")
+      flashError(com.tom.rv2ide.R.string.app_unable_to_start_activity)
     }
   }
 

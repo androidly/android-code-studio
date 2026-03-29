@@ -174,6 +174,7 @@ class ProjectTemplateBuilder :
           check(gradlew.exists()) { "'$gradlew' does not exist!" }
           check(gradlewBat.exists()) { "'$gradlew' does not exist!" }
 
+          com.tom.rv2ide.templates.normalizeProjectGradleWrapper(data.projectDir)
           gradlew.setExecutable(true)
           gradlewBat.setExecutable(true)
         }

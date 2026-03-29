@@ -274,7 +274,7 @@ class QuickRunWithCancellationAction(context: Context, override val order: Int) 
     if (prefManager.getBoolean(INSTALL_VIA_SHIZUKU, false)) {
       var installingDialog: InstallingDialog? = null
       activity.runOnUiThread {
-        installingDialog = InstallingDialog.create(activity, "Installing…")
+        installingDialog = InstallingDialog.create(activity, activity.getString(string.quick_run_installing))
         installingDialog?.show()
       }
 
@@ -285,7 +285,7 @@ class QuickRunWithCancellationAction(context: Context, override val order: Int) 
             override fun onPermissionDenied() {
               activity.runOnUiThread {
                 installingDialog?.dismiss()
-                flashError("Permission denied")
+                flashError(string.quick_run_permission_denied)
                 // fallback
                 activity.runOnUiThread {
                   ApkInstaller.installApk(
@@ -306,7 +306,7 @@ class QuickRunWithCancellationAction(context: Context, override val order: Int) 
                 log.debug("Selected variant: {}", variant?.name)
 
                 if (variant == null) {
-                  activity.runOnUiThread { flashError("Selected build variant not found") }
+                  activity.runOnUiThread { flashError(R.string.err_selected_variant_not_found) }
                   return@openApplicationModuleChooser
                 }
 
@@ -316,7 +316,7 @@ class QuickRunWithCancellationAction(context: Context, override val order: Int) 
                       "Unable to launch application. variant.mainArtifact.applicationId is null"
                   )
                   activity.runOnUiThread {
-                    flashError("Cannot run application. Unable to determine package name.")
+                    flashError(string.quick_run_package_name_unknown)
                   }
                   return@openApplicationModuleChooser
                 }
@@ -330,7 +330,7 @@ class QuickRunWithCancellationAction(context: Context, override val order: Int) 
             override fun onFailure(status: Int, message: String, tr: Throwable?) {
               activity.runOnUiThread {
                 installingDialog?.dismiss()
-                flashError("Install failure: $message")
+                flashError(activity.getString(string.quick_run_install_failure, message))
               }
               log.error(message)
             }

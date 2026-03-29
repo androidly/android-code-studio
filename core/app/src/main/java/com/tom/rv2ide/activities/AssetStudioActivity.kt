@@ -34,6 +34,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.tom.rv2ide.R
@@ -74,10 +75,9 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
             isXmlMode = true
             updatePreview()
             if (selectedXmlDrawable != null) {
-              Toast.makeText(this, "Icon imported from Material Icons", Toast.LENGTH_SHORT).show()
+              showToast(R.string.asset_studio_toast_icon_imported_material)
             } else {
-              Toast.makeText(this, "Failed to load vector from selection", Toast.LENGTH_SHORT)
-                  .show()
+              showToast(R.string.asset_studio_toast_vector_load_failed)
             }
           }
         }
@@ -96,7 +96,7 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
               isXmlMode = false
               updatePreview()
             } catch (e: Exception) {
-              Toast.makeText(this, "Error loading image: ${e.message}", Toast.LENGTH_SHORT).show()
+              showToast(R.string.asset_studio_toast_image_load_error, e.message.orEmpty())
             }
           }
         }
@@ -112,27 +112,21 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
               val inputStream = contentResolver.openInputStream(uri)
               val xmlContent = inputStream?.bufferedReader()?.use { it.readText() }
               if (xmlContent != null) {
-                Toast.makeText(this, "XML content length: ${xmlContent.length}", Toast.LENGTH_SHORT)
-                    .show()
+                showToast(R.string.asset_studio_toast_xml_content_length, xmlContent.length)
                 selectedXmlDrawable = loadVectorDrawableFromXml(xmlContent)
                 selectedImage = null
                 isXmlMode = true
                 updatePreview()
                 if (selectedXmlDrawable != null) {
-                  Toast.makeText(this, "XML loaded successfully", Toast.LENGTH_SHORT).show()
+                  showToast(R.string.asset_studio_toast_xml_loaded)
                 } else {
-                  Toast.makeText(
-                          this,
-                          "Failed to create VectorDrawable from XML",
-                          Toast.LENGTH_SHORT,
-                      )
-                      .show()
+                  showToast(R.string.asset_studio_toast_xml_drawable_failed)
                 }
               } else {
-                Toast.makeText(this, "Failed to read XML content", Toast.LENGTH_SHORT).show()
+                showToast(R.string.asset_studio_toast_xml_read_failed)
               }
             } catch (e: Exception) {
-              Toast.makeText(this, "Error loading XML: ${e.message}", Toast.LENGTH_SHORT).show()
+              showToast(R.string.asset_studio_toast_xml_load_error, e.message.orEmpty())
             }
           }
         }
@@ -461,12 +455,17 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
     paint.color = Color.parseColor("#666666")
     paint.style = Paint.Style.FILL
     paint.textSize = 48f
-    canvas.drawText("XML", 256f, 240f, paint)
+    canvas.drawText(getString(R.string.asset_studio_placeholder_xml_short), 256f, 240f, paint)
 
     
     paint.textSize = 24f
     paint.color = Color.parseColor("#999999")
-    canvas.drawText("Vector Drawable", 256f, 280f, paint)
+    canvas.drawText(
+        getString(R.string.asset_studio_placeholder_vector_drawable),
+        256f,
+        280f,
+        paint,
+    )
 
     return android.graphics.drawable.BitmapDrawable(resources, bitmap)
   }
@@ -508,7 +507,7 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
             textAlign = Paint.Align.CENTER
           }
       canvas.drawColor(Color.LTGRAY)
-      canvas.drawText("XML", 256f, 256f, paint)
+      canvas.drawText(getString(R.string.asset_studio_placeholder_xml_short), 256f, 256f, paint)
       fallbackBitmap
     }
   }
@@ -615,13 +614,15 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
 
   private fun updateForegroundScale(scale: Float) {
     currentForegroundScale = scale
-    binding.foregroundScaleValue.text = "${(scale * 100).toInt()}%"
+    binding.foregroundScaleValue.text =
+        getString(R.string.asset_studio_percentage_format, (scale * 100).toInt())
     updatePreview()
   }
 
   private fun updateRoundedCorners(radius: Float) {
     currentRoundedCorners = radius
-    binding.roundedCornersValue.text = "${(radius * 100).toInt()}%"
+    binding.roundedCornersValue.text =
+        getString(R.string.asset_studio_percentage_format, (radius * 100).toInt())
     updatePreview()
   }
 
@@ -843,16 +844,15 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
     if (isXmlMode && selectedXmlDrawable != null) {
       
       binding.previewImageView.setImageDrawable(selectedXmlDrawable)
-      Toast.makeText(this, "XML Preview updated", Toast.LENGTH_SHORT).show()
+      showToast(R.string.asset_studio_toast_xml_preview_updated)
     } else {
       selectedImage?.let { bitmap ->
         val transformedBitmap = applyImageTransformations(bitmap)
         binding.previewImageView.setImageBitmap(transformedBitmap)
-        Toast.makeText(this, "Image Preview updated", Toast.LENGTH_SHORT).show()
+        showToast(R.string.asset_studio_toast_image_preview_updated)
       }
           ?: run {
-            Toast.makeText(this, "Please select an image or XML file first", Toast.LENGTH_SHORT)
-                .show()
+            showToast(R.string.asset_studio_toast_select_image_or_xml)
           }
     }
   }
@@ -883,9 +883,13 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
   }
 
   private fun showMaterialIconsImportDialog() {
-    val options = arrayOf("Browse in app", "Paste Vector XML")
+    val options =
+        arrayOf(
+            getString(R.string.asset_studio_material_icons_browse_in_app),
+            getString(R.string.asset_studio_material_icons_paste_xml),
+        )
     AlertDialog.Builder(this)
-        .setTitle("Material Icons")
+        .setTitle(R.string.asset_studio_material_icons_title)
         .setItems(options) { dialog, which ->
           when (which) {
             0 -> {
@@ -902,7 +906,7 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
     val input =
         android.widget.EditText(this).apply {
           setText("")
-          hint = "Paste <vector> XML here"
+          hint = getString(R.string.asset_studio_paste_vector_xml_hint)
           setPadding(32, 24, 32, 24)
           minLines = 6
           maxLines = 16
@@ -915,9 +919,9 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
               )
         }
     AlertDialog.Builder(this)
-        .setTitle("Import Vector XML")
+        .setTitle(R.string.asset_studio_import_vector_xml)
         .setView(input)
-        .setPositiveButton("Import") { d, _ ->
+        .setPositiveButton(R.string.asset_studio_import) { d, _ ->
           val xml = input.text?.toString()?.trim()
           if (!xml.isNullOrEmpty()) {
             selectedXmlDrawable = loadVectorDrawableFromXml(xml)
@@ -925,9 +929,9 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
             isXmlMode = true
             updatePreview()
             if (selectedXmlDrawable != null) {
-              Toast.makeText(this, "Vector imported", Toast.LENGTH_SHORT).show()
+              showToast(R.string.asset_studio_toast_vector_imported)
             } else {
-              Toast.makeText(this, "Failed to parse vector XML", Toast.LENGTH_SHORT).show()
+              showToast(R.string.asset_studio_toast_vector_parse_failed)
             }
           }
           d.dismiss()
@@ -937,12 +941,16 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
   }
 
   private fun promptSaveLocationAndGenerate(sourceBitmap: Bitmap, iconName: String) {
-    val locations = arrayOf("drawable", "mipmap")
+    val locations =
+        arrayOf(
+            getString(R.string.asset_studio_destination_drawable),
+            getString(R.string.asset_studio_destination_mipmap),
+        )
     var selected = 0
     AlertDialog.Builder(this)
-        .setTitle("Save to")
+        .setTitle(R.string.asset_studio_save_to)
         .setSingleChoiceItems(locations, selected) { _, which -> selected = which }
-        .setPositiveButton("Generate") { dialog, _ ->
+        .setPositiveButton(R.string.asset_studio_generate) { dialog, _ ->
           val useMipmap = (selected == 1)
           generateToLocation(sourceBitmap, iconName, useMipmap)
           dialog.dismiss()
@@ -955,7 +963,7 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
     try {
       val projectDir = com.tom.rv2ide.projects.IProjectManager.getInstance().projectDirPath
       if (projectDir == null) {
-        Toast.makeText(this, "No project opened", Toast.LENGTH_SHORT).show()
+        showToast(R.string.asset_studio_toast_no_project_opened)
         return
       }
       val resDir = java.io.File(projectDir, "app/src/main/res")
@@ -988,15 +996,21 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
         generatedCount++
       }
 
-      Toast.makeText(this, "Generated $generatedCount icons in res/$base-*", Toast.LENGTH_LONG)
-          .show()
+      showToast(
+          R.string.asset_studio_generated_icons_summary,
+          duration = Toast.LENGTH_LONG,
+          formatArgs = arrayOf(generatedCount, base),
+      )
     } catch (e: Exception) {
-      Toast.makeText(this, "Error generating icons: ${e.message}", Toast.LENGTH_SHORT).show()
+      showToast(R.string.asset_studio_toast_generate_error, e.message.orEmpty())
     }
   }
 
   private fun generateImageAssets() {
-    val iconName = binding.iconNameInput.text.toString().ifEmpty { "ic_my_icon" }
+    val iconName =
+        binding.iconNameInput.text.toString().ifEmpty {
+          getString(R.string.asset_studio_default_icon_name)
+        }
     val sourceBitmap =
         if (isXmlMode && selectedXmlDrawable != null) {
           createBitmapFromDrawable(selectedXmlDrawable!!)
@@ -1004,9 +1018,18 @@ class AssetStudioActivity : EdgeToEdgeIDEActivity() {
           selectedImage
         }
     if (sourceBitmap == null) {
-      Toast.makeText(this, "Please select an image or XML file first", Toast.LENGTH_SHORT).show()
+      showToast(R.string.asset_studio_toast_select_image_or_xml)
       return
     }
     promptSaveLocationAndGenerate(sourceBitmap, iconName)
+  }
+
+  private fun showToast(
+      @StringRes messageResId: Int,
+      vararg args: Any,
+      duration: Int = Toast.LENGTH_SHORT,
+      formatArgs: Array<out Any> = args,
+  ) {
+    Toast.makeText(this, getString(messageResId, *formatArgs), duration).show()
   }
 }

@@ -29,7 +29,10 @@ import java.io.File
 
 interface Template {
   val displayName: String
+  val displayNameRes: Int
   val templateType: TemplateType
+
+  fun getDisplayName(context: Context): String = context.getString(displayNameRes)
 
   /**
    * Configure global options when this template is selected. Override in specific templates to set

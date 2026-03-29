@@ -201,6 +201,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity(), EventReceiver {
     syncNotificationFlashbar = null
 
     if (isDestroying) {
+      val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+      buildService?.setEventListener(null)
+      mBuildEventListener.release()
+      editorViewModel.isBoundToBuildSerice = false
+
       releaseServerListener()
       this.initializingFuture?.cancel(true)
       this.initializingFuture = null
@@ -229,13 +234,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity(), EventReceiver {
         log.error("Unable to unbind service")
       } finally {
         Lookup.getDefault().apply {
-          (lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService?)?.setEventListener(null)
-
           unregister(BuildService.KEY_BUILD_SERVICE)
         }
-
-        mBuildEventListener.release()
-        editorViewModel.isBoundToBuildSerice = false
       }
     }
   }
@@ -627,44 +627,66 @@ fun initializeProject(buildVariants: Map<String, String>) {
       }
   
       val builder = newMaterialDialogBuilder(this)
-      builder.setTitle(if (canContinueWithLastWorkspace) "Project Sync Failed" else "Project Setup Failed")
+      builder.setTitle(
+          if (canContinueWithLastWorkspace) {
+            getString(string.project_sync_failed_title)
+          } else {
+            getString(string.project_setup_failed_title)
+          }
+      )
       builder.setMessage(
           if (canContinueWithLastWorkspace) {
-            "The latest sync could not be applied.\n\n$errorMessage\n\nThe last successfully indexed project model is still available. You can retry the sync, continue working with the cached model, or inspect the detailed error."
+            getString(string.project_sync_failed_message, errorMessage)
           } else {
-            "The project could not be initialized properly.\n\n$errorMessage\n\nYou can retry setup, inspect the detailed error, or close the project."
+            getString(string.project_setup_failed_message, errorMessage)
           }
       )
       builder.setIcon(R.drawable.ic_error)
       builder.setCancelable(canContinueWithLastWorkspace)
   
-      builder.setPositiveButton(if (canContinueWithLastWorkspace) "Retry Sync" else "Retry") { dialog, _ ->
+      builder.setPositiveButton(
+          if (canContinueWithLastWorkspace) {
+            getString(string.project_retry_sync)
+          } else {
+            getString(string.project_retry)
+          }
+      ) { dialog, _ ->
         dialog.dismiss()
         if (!isFinishing && !isDestroyed) {
             initializeProject()
         }
       }
   
-      builder.setNegativeButton(if (canContinueWithLastWorkspace) "Continue" else "Close Project") { dialog, _ ->
+      builder.setNegativeButton(
+          if (canContinueWithLastWorkspace) {
+            getString(string.project_continue)
+          } else {
+            getString(string.project_close_project)
+          }
+      ) { dialog, _ ->
         dialog.dismiss()
         if (!canContinueWithLastWorkspace && !isFinishing && !isDestroyed) {
             confirmProjectClose()
         }
       }
   
-      builder.setNeutralButton("View Error") { dialog, _ ->
+      builder.setNeutralButton(getString(string.project_view_error)) { dialog, _ ->
         if (isFinishing || isDestroyed) {
             return@setNeutralButton
         }
         
         val errorBuilder = newMaterialDialogBuilder(this)
-        errorBuilder.setTitle("Full Error Details")
+        errorBuilder.setTitle(getString(string.project_full_error_details))
         errorBuilder.setMessage(fullErrorDetails)
-        errorBuilder.setPositiveButton("OK") { d, _ -> d.dismiss() }
-        errorBuilder.setNeutralButton("Copy Details") { d, _ ->
+        errorBuilder.setPositiveButton(android.R.string.ok) { d, _ -> d.dismiss() }
+        errorBuilder.setNeutralButton(getString(string.project_copy_details)) { d, _ ->
           try {
             val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            val clip = android.content.ClipData.newPlainText("Project Setup Error", fullErrorDetails)
+            val clip =
+                android.content.ClipData.newPlainText(
+                    getString(string.project_setup_error_clip_label),
+                    fullErrorDetails,
+                )
             clipboard.setPrimaryClip(clip)
           } catch (e: Exception) {
             log.error("Failed to copy error to clipboard", e)
