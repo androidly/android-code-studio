@@ -35,14 +35,14 @@
             android:layout_height="wrap_content"
             android:hint="@string/ai_assistant_custom_provider_profile_name_hint"
             android:layout_marginBottom="16dp"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            app:placeholderText="@string/ai_assistant_custom_provider_profile_name_example">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/profileNameInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPersonName"
-                android:hint="@string/ai_assistant_custom_provider_profile_name_example" />
+                android:inputType="textPersonName" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -52,14 +52,14 @@
             android:layout_height="wrap_content"
             android:hint="@string/ai_assistant_base_url_hint"
             android:layout_marginBottom="16dp"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            app:placeholderText="@string/ai_assistant_base_url_example">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/baseUrlInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textUri"
-                android:hint="@string/ai_assistant_base_url_example" />
+                android:inputType="textUri" />
 
         </com.google.android.material.textfield.TextInputLayout>
 

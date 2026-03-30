@@ -35,14 +35,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:hint="@string/ai_assistant_codex_profile_name_hint">
+            android:hint="@string/ai_assistant_codex_profile_name_hint"
+            app:placeholderText="@string/ai_assistant_codex_profile_name_example">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/codexProfileNameInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
-                android:hint="@string/ai_assistant_codex_profile_name_example" />
+                android:inputType="text" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -52,14 +52,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:hint="@string/ai_assistant_codex_provider_id_hint">
+            android:hint="@string/ai_assistant_codex_provider_id_hint"
+            app:placeholderText="@string/ai_assistant_codex_provider_id_example">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/codexProviderIdInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textNoSuggestions"
-                android:hint="@string/ai_assistant_codex_provider_id_example" />
+                android:inputType="textNoSuggestions" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -69,14 +69,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:hint="@string/ai_assistant_codex_provider_name_hint">
+            android:hint="@string/ai_assistant_codex_provider_name_hint"
+            app:placeholderText="@string/ai_assistant_codex_provider_name_example">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/codexProviderNameInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
-                android:hint="@string/ai_assistant_codex_provider_name_example" />
+                android:inputType="text" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -86,14 +86,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:hint="@string/ai_assistant_base_url_hint">
+            android:hint="@string/ai_assistant_base_url_hint"
+            app:placeholderText="@string/ai_assistant_base_url_example">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/codexBaseUrlInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textUri"
-                android:hint="@string/ai_assistant_base_url_example" />
+                android:inputType="textUri" />
 
         </com.google.android.material.textfield.TextInputLayout>
 

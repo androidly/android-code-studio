@@ -46,6 +46,8 @@
     <string name="ai_assistant_delete_custom_profile_dialog_message">删除“%1$s”？</string>
     <string name="ai_assistant_delete_custom_profile_failed">删除自定义配置失败</string>
     <string name="ai_assistant_add_codex_profile_title">添加 Codex 配置</string>
+    <string name="ai_assistant_edit_codex_profile_title">编辑当前 Codex 配置</string>
+    <string name="ai_assistant_delete_codex_profile_title">删除当前 Codex 配置</string>
     <string name="ai_assistant_no_codex_profile_to_edit">没有可编辑的 Codex 配置</string>
     <string name="ai_assistant_no_codex_profile_to_delete">没有可删除的 Codex 配置</string>
     <string name="ai_assistant_delete_codex_profile_dialog_title">删除 Codex 配置</string>
@@ -90,6 +92,17 @@
 
     <string name="ai_assistant_console_engine_default">Codex</string>
     <string name="ai_assistant_console_configure">配置</string>
+    <string name="ai_assistant_codex_settings_menu_title">Codex 设置</string>
+    <string name="ai_assistant_codex_switch_profile_title">切换 Codex 配置</string>
+    <string name="ai_assistant_codex_profile_manager_title">Codex 配置</string>
+    <string name="ai_assistant_codex_profile_manager_summary">在助手里直接切换当前桥接配置、查看已保存详情、编辑现有配置，或继续新增其他配置。</string>
+    <string name="ai_assistant_codex_profile_view">查看</string>
+    <string name="ai_assistant_codex_profile_hide">收起</string>
+    <string name="ai_assistant_codex_profile_needs_setup">待补全</string>
+    <string name="ai_assistant_codex_profile_api_key_configured">已配置</string>
+    <string name="ai_assistant_codex_profile_api_key_missing">缺失</string>
+    <string name="ai_assistant_codex_profile_add_card_summary">为这个助手再创建一个可复用的 Codex 桥接配置。</string>
+    <string name="ai_assistant_codex_profile_saved">已保存 Codex 配置：%1$s</string>
     <string name="ai_assistant_console_input_hint">输入消息或 /命令</string>
     <string name="ai_assistant_console_send_request">发送请求</string>
     <string name="ai_assistant_console_shortcuts" translatable="false">/new  /list  /switch  /help</string>

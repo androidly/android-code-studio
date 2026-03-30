@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 class CodexCliConfigDialog(
     private val profileId: String? = null,
     private val createNew: Boolean = false,
+    private val makeActiveOnSave: Boolean = true,
     private val onSave: (CodexCliSettings) -> Unit
 ) : BottomSheetDialogFragment() {
 
@@ -315,7 +316,7 @@ class CodexCliConfigDialog(
             contextWindow = contextWindow ?: return,
             autoCompactTokenLimit = autoCompact ?: return,
             cachedModels = buildSuggestedModels(model, reviewModel),
-            makeActive = true
+            makeActive = makeActiveOnSave
         )
         onSave(savedProfile.toSettings())
         dismiss()

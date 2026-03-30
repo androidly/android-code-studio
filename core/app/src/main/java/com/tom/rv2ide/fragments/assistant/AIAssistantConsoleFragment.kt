@@ -32,6 +32,8 @@ import com.tom.rv2ide.artificial.agents.custom.CustomProviderProfile
 import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
 import com.tom.rv2ide.artificial.agents.external.CodexTermuxBridge
 import com.tom.rv2ide.artificial.dialogs.CodexCliConfigDialog
+import com.tom.rv2ide.artificial.dialogs.CodexProfileManagerDialog
+import com.tom.rv2ide.artificial.dialogs.CodexProfileManagerEvent
 import com.tom.rv2ide.artificial.dialogs.CustomProviderConfigDialog
 import com.tom.rv2ide.utils.ProjectHelper.getProjectRoot
 import java.io.File
@@ -200,11 +202,7 @@ class AIAssistantConsoleFragment : Fragment() {
         }
 
         engineButton.setOnClickListener {
-            when (Agents(requireContext()).getProvider()) {
-                "external" -> openCodexConfig(selectAfterSave = false)
-                "custom" -> openCustomProviderConfig(selectAfterSave = false)
-                else -> showProviderSwitcher()
-            }
+            showEngineSettingsMenu()
         }
 
         slashButton.setOnClickListener {
@@ -237,6 +235,14 @@ class AIAssistantConsoleFragment : Fragment() {
             if (!consoleViewModel.collapseHistoryToLatest()) {
                 scrollToBottom(force = true, smooth = true)
             }
+        }
+    }
+
+    private fun showEngineSettingsMenu() {
+        when (Agents(requireContext()).getProvider()) {
+            "external" -> showCodexSettingsMenu()
+            "custom" -> openCustomProviderConfig(selectAfterSave = false)
+            else -> showProviderSwitcher()
         }
     }
 
@@ -383,13 +389,115 @@ class AIAssistantConsoleFragment : Fragment() {
         }
     }
 
-    private fun openCodexConfig(selectAfterSave: Boolean) {
-        CodexCliConfigDialog {
-            CodexTermuxBridge.ensureManagedPreset(context = requireContext())
-            val applied = consoleViewModel.applyAgentSelection(
-                providerId = "external",
-                preferredModel = CodexCliConfig.getModelId()
-            )
+    private fun showCodexSettingsMenu() {
+        CodexProfileManagerDialog(::handleCodexProfileManagerEvent)
+            .show(parentFragmentManager, "CodexProfileManagerDialog")
+    }
+
+    private fun handleCodexProfileManagerEvent(event: CodexProfileManagerEvent) {
+        when (event) {
+            is CodexProfileManagerEvent.Activated -> {
+                if (applyActiveCodexProfileSelection()) {
+                    showSnackbar(getString(R.string.ai_assistant_codex_profile_active, event.profileName))
+                } else {
+                    showSnackbar(
+                        getString(
+                            R.string.ai_assistant_no_valid_api_key,
+                            providerDisplayName("external")
+                        )
+                    )
+                }
+            }
+
+            is CodexProfileManagerEvent.Saved -> {
+                if (event.profileBecameActive) {
+                    if (applyActiveCodexProfileSelection()) {
+                        showSnackbar(getString(R.string.ai_assistant_codex_profile_active, event.profileName))
+                    } else {
+                        showSnackbar(
+                            getString(
+                                R.string.ai_assistant_no_valid_api_key,
+                                providerDisplayName("external")
+                            )
+                        )
+                    }
+                } else {
+                    showSnackbar(getString(R.string.ai_assistant_codex_profile_saved, event.profileName))
+                }
+            }
+
+            is CodexProfileManagerEvent.Deleted -> {
+                if (!event.affectedActiveProfile) {
+                    showSnackbar(getString(R.string.ai_assistant_deleted_profile, event.profileName))
+                    return
+                }
+
+                val newActiveProfile = CodexCliConfig.getActiveProfile()
+                when {
+                    newActiveProfile != null -> {
+                        if (applyActiveCodexProfileSelection()) {
+                            showSnackbar(
+                                getString(
+                                    R.string.ai_assistant_codex_profile_active,
+                                    newActiveProfile.name
+                                )
+                            )
+                        } else {
+                            showSnackbar(
+                                getString(
+                                    R.string.ai_assistant_no_valid_api_key,
+                                    providerDisplayName("external")
+                                )
+                            )
+                        }
+                    }
+
+                    CodexCliConfig.hasValidConfig() -> {
+                        if (applyActiveCodexProfileSelection()) {
+                            showSnackbar(getString(R.string.ai_assistant_deleted_profile, event.profileName))
+                        } else {
+                            showSnackbar(
+                                getString(
+                                    R.string.ai_assistant_no_valid_api_key,
+                                    providerDisplayName("external")
+                                )
+                            )
+                        }
+                    }
+
+                    else -> {
+                        showSnackbar(getString(R.string.ai_assistant_codex_profile_deleted_requires_reselect))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyActiveCodexProfileSelection(): Boolean {
+        CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+        return consoleViewModel.applyAgentSelection(
+            providerId = "external",
+            preferredModel = CodexCliConfig.getModelId()
+        )
+    }
+
+    private fun openCodexConfig(
+        profileId: String? = CodexCliConfig.getActiveProfileId().takeIf { it.isNotBlank() },
+        createNew: Boolean = false,
+        selectAfterSave: Boolean
+    ) {
+        CodexCliConfigDialog(
+            profileId = profileId,
+            createNew = createNew,
+            makeActiveOnSave = selectAfterSave
+        ) { savedSettings ->
+            val activeProfileSaved = savedSettings.profileId.isNotBlank() &&
+                savedSettings.profileId == CodexCliConfig.getActiveProfileId()
+            val applied = if (activeProfileSaved) {
+                applyActiveCodexProfileSelection()
+            } else {
+                false
+            }
             if (applied && selectAfterSave) {
                 showSnackbar(
                     getString(
@@ -397,8 +505,10 @@ class AIAssistantConsoleFragment : Fragment() {
                         providerDisplayName("external")
                     )
                 )
+            } else if (activeProfileSaved && applied) {
+                showSnackbar(getString(R.string.ai_assistant_codex_profile_active, savedSettings.resolvedProfileName))
             } else {
-                showSnackbar(getString(R.string.ai_assistant_codex_settings_saved))
+                showSnackbar(getString(R.string.ai_assistant_codex_profile_saved, savedSettings.resolvedProfileName))
             }
         }.show(parentFragmentManager, "CodexCliConfigDialog")
     }

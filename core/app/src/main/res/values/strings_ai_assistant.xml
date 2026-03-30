@@ -46,6 +46,8 @@
     <string name="ai_assistant_delete_custom_profile_dialog_message">Delete \'%1$s\'?</string>
     <string name="ai_assistant_delete_custom_profile_failed">Failed to delete custom profile</string>
     <string name="ai_assistant_add_codex_profile_title">Add Codex Profile</string>
+    <string name="ai_assistant_edit_codex_profile_title">Edit Active Codex Profile</string>
+    <string name="ai_assistant_delete_codex_profile_title">Delete Active Codex Profile</string>
     <string name="ai_assistant_no_codex_profile_to_edit">No Codex profile to edit</string>
     <string name="ai_assistant_no_codex_profile_to_delete">No Codex profile to delete</string>
     <string name="ai_assistant_delete_codex_profile_dialog_title">Delete Codex Profile</string>
@@ -90,6 +92,17 @@
 
     <string name="ai_assistant_console_engine_default">Codex</string>
     <string name="ai_assistant_console_configure">Config</string>
+    <string name="ai_assistant_codex_settings_menu_title">Codex Settings</string>
+    <string name="ai_assistant_codex_switch_profile_title">Switch Codex Profile</string>
+    <string name="ai_assistant_codex_profile_manager_title">Codex Profiles</string>
+    <string name="ai_assistant_codex_profile_manager_summary">Switch the active bridge profile, inspect saved details, edit entries, or add another profile without leaving the assistant.</string>
+    <string name="ai_assistant_codex_profile_view">View</string>
+    <string name="ai_assistant_codex_profile_hide">Hide</string>
+    <string name="ai_assistant_codex_profile_needs_setup">Needs setup</string>
+    <string name="ai_assistant_codex_profile_api_key_configured">Configured</string>
+    <string name="ai_assistant_codex_profile_api_key_missing">Missing</string>
+    <string name="ai_assistant_codex_profile_add_card_summary">Create another reusable Codex bridge profile for this assistant.</string>
+    <string name="ai_assistant_codex_profile_saved">Saved Codex profile: %1$s</string>
     <string name="ai_assistant_console_input_hint">Message or /command</string>
     <string name="ai_assistant_console_send_request">Send request</string>
     <string name="ai_assistant_console_shortcuts" translatable="false">/new  /list  /switch  /help</string>
