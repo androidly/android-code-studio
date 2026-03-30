@@ -94,7 +94,7 @@ dependencyResolutionManagement {
 }
 
 gradle.rootProject {
-    val baseVersion = "v1.0.1+codex"
+    val baseVersion = "v1.0.2+codex"
     println("Android code studio version: $baseVersion")
     project.setProperty("version", baseVersion)
 }

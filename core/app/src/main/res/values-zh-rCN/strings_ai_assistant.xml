@@ -45,6 +45,12 @@
     <string name="ai_assistant_delete_custom_profile_dialog_title">删除自定义配置</string>
     <string name="ai_assistant_delete_custom_profile_dialog_message">删除“%1$s”？</string>
     <string name="ai_assistant_delete_custom_profile_failed">删除自定义配置失败</string>
+    <string name="ai_assistant_add_codex_profile_title">添加 Codex 配置</string>
+    <string name="ai_assistant_no_codex_profile_to_edit">没有可编辑的 Codex 配置</string>
+    <string name="ai_assistant_no_codex_profile_to_delete">没有可删除的 Codex 配置</string>
+    <string name="ai_assistant_delete_codex_profile_dialog_title">删除 Codex 配置</string>
+    <string name="ai_assistant_delete_codex_profile_dialog_message">删除“%1$s”？</string>
+    <string name="ai_assistant_delete_codex_profile_failed">删除 Codex 配置失败</string>
     <string name="ai_assistant_open_custom_provider_editor_failed">无法从当前界面打开自定义提供商编辑器</string>
     <string name="ai_assistant_open_codex_editor_failed">无法从当前界面打开 Codex CLI 编辑器</string>
 
@@ -70,6 +76,7 @@
     <string name="ai_assistant_preferences_custom_profiles_summary">在这里切换和管理可复用的网关配置。</string>
     <string name="ai_assistant_preferences_active_custom_profile_hint">当前自定义配置</string>
     <string name="ai_assistant_preferences_codex_bridge_description">将助手桥接到 Termux Codex 会话。受管桥接遵循 Codex 流程，不再暴露命令模板。</string>
+    <string name="ai_assistant_preferences_active_codex_profile_hint">当前 Codex 配置</string>
     <string name="ai_assistant_preferences_configure_codex">配置 Codex</string>
     <string name="ai_assistant_preferences_apply_preset">应用预设</string>
     <string name="ai_assistant_preferences_auto_switch_toggle_summary">出错时自动切换提供商</string>
@@ -115,6 +122,8 @@
 
     <string name="ai_assistant_codex_dialog_title">配置 Codex CLI</string>
     <string name="ai_assistant_codex_dialog_summary">为 Termux 桥接写入受管的 Codex provider 项。桥接仅导出兼容 Responses 的设置。</string>
+    <string name="ai_assistant_codex_profile_name_hint">配置名称</string>
+    <string name="ai_assistant_codex_profile_name_example" translatable="false">OpenAI Primary</string>
     <string name="ai_assistant_codex_provider_id_hint">提供商 ID</string>
     <string name="ai_assistant_codex_provider_id_example" translatable="false">OpenAI</string>
     <string name="ai_assistant_codex_provider_name_hint">提供商名称</string>
@@ -156,8 +165,11 @@
 
     <string name="ai_assistant_codex_settings_saved">Codex CLI 设置已保存</string>
     <string name="ai_assistant_custom_profile_active">当前自定义配置：%1$s</string>
+    <string name="ai_assistant_codex_profile_active_name">%1$s（%2$s）</string>
+    <string name="ai_assistant_codex_profile_active">当前 Codex 配置：%1$s</string>
     <string name="ai_assistant_add_custom_profile_first">请先添加自定义配置</string>
     <string name="ai_assistant_custom_profile_deleted_requires_reselect">自定义配置已删除。请添加或重新选择其他配置以继续使用自定义提供商。</string>
+    <string name="ai_assistant_codex_profile_deleted_requires_reselect">Codex 配置已删除。请添加或重新选择其他配置以继续使用 Codex CLI。</string>
     <string name="ai_assistant_deleted_profile">已删除 %1$s</string>
     <string name="ai_assistant_codex_installer_opened_and_preset_applied">已打开 Codex CLI 安装器并应用 Codex 预设</string>
     <string name="ai_assistant_auto_switch_enabled">已启用自动切换</string>
@@ -175,6 +187,8 @@
     <string name="ai_assistant_reinstall_codex_cli">重新安装 Codex CLI</string>
     <string name="ai_assistant_custom_provider_create_status">创建一个可复用的自定义提供商配置。NewAPI 风格网关可从 /v1/models 获取模型。</string>
     <string name="ai_assistant_custom_provider_edit_status">正在编辑 %1$s。你可以获取模型，也可以手动输入模型 ID。</string>
+    <string name="ai_assistant_codex_profile_create_status">创建一个可复用的 Codex 桥接配置。对于 OpenAI 兼容网关可以直接获取模型列表。</string>
+    <string name="ai_assistant_codex_profile_edit_status">正在编辑 %1$s。你可以获取模型，也可以手动输入模型 ID。</string>
     <string name="ai_assistant_profile_name_required">必须填写配置名称</string>
     <string name="ai_assistant_model_id_required">必须填写模型 ID</string>
     <string name="ai_assistant_api_type_required">必须选择 API 类型</string>

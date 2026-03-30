@@ -224,7 +224,9 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
     }
 
     add(argument.argumentName)
-    add(strVal)
+    if (argument.requiresValue || strVal.isNotBlank()) {
+      add(strVal)
+    }
   }
 
   override fun onStart() {

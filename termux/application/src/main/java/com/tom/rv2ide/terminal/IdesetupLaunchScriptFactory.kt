@@ -18,30 +18,38 @@ internal data class IdesetupLaunchArtifacts(
 internal object IdesetupLaunchScriptFactory {
 
     private val log = LoggerFactory.getLogger(IdesetupLaunchScriptFactory::class.java)
+    private const val IDESETUP_BINARY_NAME = "idesetup"
 
     fun create(
         context: Context,
         postSetupCommand: String?
     ): IdesetupLaunchArtifacts? {
-        val binary = createBinaryScript(context) ?: return null
+        val launchDir = createLaunchDirectory(context) ?: return null
+        val binary = createBinaryScript(context, launchDir) ?: return null
         val queuedCommand = postSetupCommand?.trim().orEmpty()
-        if (queuedCommand.isBlank()) {
-            return IdesetupLaunchArtifacts(
-                executable = binary,
-                tempFiles = listOf(binary)
-            )
-        }
-
-        val wrapper = createWrapperScript(context, binary, queuedCommand) ?: return null
+        val wrapper = createWrapperScript(
+            launchDir = launchDir,
+            binary = binary,
+            postSetupCommand = queuedCommand
+        ) ?: return null
         return IdesetupLaunchArtifacts(
             executable = wrapper,
-            tempFiles = listOf(binary, wrapper)
+            tempFiles = listOf(wrapper, binary, launchDir)
         )
     }
 
-    private fun createBinaryScript(context: Context): File? {
+    private fun createLaunchDirectory(context: Context): File? {
         val tempDir = File(context.filesDir, "temp").apply { mkdirs() }
-        val script = File(tempDir, "idesetup_${UUID.randomUUID().toString().replace('-', '_')}")
+        val launchDir = File(tempDir, "idesetup_${UUID.randomUUID().toString().replace('-', '_')}")
+        if (launchDir.exists() || launchDir.mkdirs()) {
+            return launchDir
+        }
+        log.error("Failed to create idesetup launch directory: {}", launchDir.absolutePath)
+        return null
+    }
+
+    private fun createBinaryScript(context: Context, launchDir: File): File? {
+        val script = File(launchDir, IDESETUP_BINARY_NAME)
         if (!writeIdesetupBinary(context, script)) {
             return null
         }
@@ -50,18 +58,22 @@ internal object IdesetupLaunchScriptFactory {
     }
 
     private fun createWrapperScript(
-        context: Context,
+        launchDir: File,
         binary: File,
         postSetupCommand: String
     ): File? {
-        val tempDir = File(context.filesDir, "temp").apply { mkdirs() }
-        val wrapper = File(tempDir, "idesetup_wrapper_${UUID.randomUUID().toString().replace('-', '_')}.sh")
+        val wrapper = File(launchDir, "idesetup_wrapper.sh")
         val shellPath = Environment.BASH_SHELL.takeIf { it.exists() }?.absolutePath ?: "/system/bin/sh"
         val scriptContent = buildString {
             appendLine("#!$shellPath")
             appendLine("set +e")
+            appendLine("export PATH=${shellQuote(launchDir.absolutePath)}:\"${'$'}PATH\"")
             appendLine("idesetup_binary=${shellQuote(binary.absolutePath)}")
             appendLine("\"${'$'}idesetup_binary\" \"${'$'}@\"")
+            if (postSetupCommand.isBlank()) {
+                appendLine("exit \"${'$'}?\"")
+                return@buildString
+            }
             appendLine("setup_status=${'$'}?")
             appendLine("if [ \"${'$'}setup_status\" -ne 0 ]; then")
             appendLine("  echo")

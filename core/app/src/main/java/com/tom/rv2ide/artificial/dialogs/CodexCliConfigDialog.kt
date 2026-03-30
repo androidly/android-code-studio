@@ -16,14 +16,18 @@ import com.tom.rv2ide.R
 import com.tom.rv2ide.artificial.agents.custom.CustomProviderModelService
 import com.tom.rv2ide.artificial.agents.external.CodexCliAuthMode
 import com.tom.rv2ide.artificial.agents.external.CodexCliConfig
+import com.tom.rv2ide.artificial.agents.external.CodexCliProfile
 import com.tom.rv2ide.artificial.agents.external.CodexCliReasoningEffort
 import com.tom.rv2ide.artificial.agents.external.CodexCliSettings
 import kotlinx.coroutines.launch
 
 class CodexCliConfigDialog(
+    private val profileId: String? = null,
+    private val createNew: Boolean = false,
     private val onSave: (CodexCliSettings) -> Unit
 ) : BottomSheetDialogFragment() {
 
+    private lateinit var profileNameLayout: TextInputLayout
     private lateinit var providerIdLayout: TextInputLayout
     private lateinit var providerNameLayout: TextInputLayout
     private lateinit var baseUrlLayout: TextInputLayout
@@ -35,6 +39,7 @@ class CodexCliConfigDialog(
     private lateinit var contextWindowLayout: TextInputLayout
     private lateinit var autoCompactLayout: TextInputLayout
 
+    private lateinit var profileNameInput: TextInputEditText
     private lateinit var providerIdInput: TextInputEditText
     private lateinit var providerNameInput: TextInputEditText
     private lateinit var baseUrlInput: TextInputEditText
@@ -52,6 +57,7 @@ class CodexCliConfigDialog(
     private lateinit var cancelButton: Button
 
     private val loadedModels = mutableListOf<String>()
+    private var loadedProfile: CodexCliProfile? = null
     private var autoFetchAttempted = false
 
     override fun onCreateView(
@@ -71,6 +77,7 @@ class CodexCliConfigDialog(
     }
 
     private fun bindViews(view: View) {
+        profileNameLayout = view.findViewById(R.id.codexProfileNameLayout)
         providerIdLayout = view.findViewById(R.id.codexProviderIdLayout)
         providerNameLayout = view.findViewById(R.id.codexProviderNameLayout)
         baseUrlLayout = view.findViewById(R.id.codexBaseUrlLayout)
@@ -82,6 +89,7 @@ class CodexCliConfigDialog(
         contextWindowLayout = view.findViewById(R.id.codexContextWindowLayout)
         autoCompactLayout = view.findViewById(R.id.codexAutoCompactLayout)
 
+        profileNameInput = view.findViewById(R.id.codexProfileNameInput)
         providerIdInput = view.findViewById(R.id.codexProviderIdInput)
         providerNameInput = view.findViewById(R.id.codexProviderNameInput)
         baseUrlInput = view.findViewById(R.id.codexBaseUrlInput)
@@ -120,7 +128,16 @@ class CodexCliConfigDialog(
     }
 
     private fun loadSavedConfig() {
-        val settings = CodexCliConfig.getSettings()
+        loadedProfile = if (createNew) {
+            null
+        } else {
+            CodexCliConfig.getProfile(profileId) ?: CodexCliConfig.getActiveProfile()
+        }
+        val settings = loadedProfile?.toSettings() ?: CodexCliConfig.getSettings()
+        loadedModels.clear()
+        loadedModels.addAll(loadedProfile?.cachedModels.orEmpty())
+
+        profileNameInput.setText(loadedProfile?.name.orEmpty())
         providerIdInput.setText(settings.providerId)
         providerNameInput.setText(settings.providerName)
         baseUrlInput.setText(settings.baseUrl)
@@ -131,9 +148,22 @@ class CodexCliConfigDialog(
         reasoningInput.setText(settings.reasoningEffort.displayName, false)
         contextWindowInput.setText(settings.contextWindow.toString())
         autoCompactInput.setText(settings.autoCompactTokenLimit.toString())
-        loadedModels.clear()
-        updateModelSuggestions(listOf(settings.model, settings.reviewModel).filter { it.isNotBlank() })
-        statusText.text = settings.summaryText()
+
+        updateModelSuggestions(
+            if (loadedModels.isNotEmpty()) {
+                buildSuggestedModels(settings.model, settings.resolvedReviewModel)
+            } else {
+                settings.availableModels
+            }
+        )
+        statusText.text = if (createNew || loadedProfile == null) {
+            getString(R.string.ai_assistant_codex_profile_create_status)
+        } else {
+            getString(
+                R.string.ai_assistant_codex_profile_edit_status,
+                loadedProfile?.name ?: settings.resolvedProfileName
+            )
+        }
         autoFetchAttempted = false
         maybeAutoFetchModels()
     }
@@ -163,8 +193,10 @@ class CodexCliConfigDialog(
         modelInput.setOnClickListener {
             if (loadedModels.isNotEmpty()) {
                 modelInput.showDropDown()
-            } else {
-                maybeAutoFetchModels(force = true)
+                return@setOnClickListener
+            }
+            if (!maybeAutoFetchModels(force = true)) {
+                modelInput.showDropDown()
             }
         }
 
@@ -220,6 +252,7 @@ class CodexCliConfigDialog(
     private fun saveConfig() {
         clearErrors()
 
+        val profileName = profileNameInput.text?.toString().orEmpty().trim()
         val providerId = providerIdInput.text?.toString().orEmpty().trim()
         val providerName = providerNameInput.text?.toString().orEmpty().trim()
         val baseUrl = baseUrlInput.text?.toString().orEmpty().trim()
@@ -232,6 +265,10 @@ class CodexCliConfigDialog(
         val autoCompact = autoCompactInput.text?.toString().orEmpty().trim().toLongOrNull()
 
         var hasError = false
+        if (profileName.isBlank()) {
+            profileNameLayout.error = getString(R.string.ai_assistant_profile_name_required)
+            hasError = true
+        }
         if (!CodexCliConfig.isValidProviderId(providerId)) {
             providerIdLayout.error = getString(R.string.ai_assistant_codex_provider_id_validation)
             hasError = true
@@ -264,10 +301,9 @@ class CodexCliConfigDialog(
             return
         }
 
-        val resolvedContextWindow = contextWindow ?: return
-        val resolvedAutoCompact = autoCompact ?: return
-
-        val savedSettings = CodexCliConfig.save(
+        val savedProfile = CodexCliConfig.saveProfile(
+            profileId = loadedProfile?.id ?: profileId,
+            profileName = profileName,
             providerId = providerId,
             providerName = providerName.ifBlank { providerId },
             baseUrl = baseUrl,
@@ -276,29 +312,37 @@ class CodexCliConfigDialog(
             reviewModel = reviewModel,
             reasoningEffort = reasoningEffort,
             authMode = authMode,
-            contextWindow = resolvedContextWindow,
-            autoCompactTokenLimit = resolvedAutoCompact
+            contextWindow = contextWindow ?: return,
+            autoCompactTokenLimit = autoCompact ?: return,
+            cachedModels = buildSuggestedModels(model, reviewModel),
+            makeActive = true
         )
-        onSave(savedSettings)
+        onSave(savedProfile.toSettings())
         dismiss()
     }
 
     private fun updateModelSuggestions(models: List<String>) {
-        val normalizedModels = LinkedHashSet<String>()
-        models.map(String::trim)
-            .filter(String::isNotBlank)
-            .forEach(normalizedModels::add)
-        if (normalizedModels.isEmpty()) {
-            return
-        }
-
         modelInput.setAdapter(
             ArrayAdapter(
                 requireContext(),
                 android.R.layout.simple_dropdown_item_1line,
-                normalizedModels.toList()
+                buildSuggestedModels(models = models)
             )
         )
+    }
+
+    private fun buildSuggestedModels(
+        primaryModel: String? = null,
+        reviewModel: String? = null,
+        models: List<String> = loadedModels
+    ): List<String> {
+        val ordered = LinkedHashSet<String>()
+        primaryModel?.trim()?.takeIf { it.isNotBlank() }?.let(ordered::add)
+        reviewModel?.trim()?.takeIf { it.isNotBlank() }?.let(ordered::add)
+        models.map(String::trim)
+            .filter(String::isNotBlank)
+            .forEach(ordered::add)
+        return ordered.toList()
     }
 
     private fun authModeLabel(mode: CodexCliAuthMode): String {
@@ -317,6 +361,7 @@ class CodexCliConfigDialog(
     }
 
     private fun clearErrors() {
+        profileNameLayout.error = null
         providerIdLayout.error = null
         providerNameLayout.error = null
         baseUrlLayout.error = null

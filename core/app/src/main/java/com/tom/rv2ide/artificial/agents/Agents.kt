@@ -158,14 +158,19 @@ class Agents(ctx: Context) {
       return false
     }
     return normalizedModel == externalEngineModelId() ||
-      normalizedModel == ExternalEngineConfig.getModelLabel()
+      normalizedModel == ExternalEngineConfig.getModelLabel() ||
+      normalizedModel in CodexCliConfig.getAvailableModels()
   }
 
   private val external_engine_models: Array<String>
-    get() = externalEngineModelId()
-      .takeIf { it.isNotBlank() }
-      ?.let { arrayOf(it) }
-      ?: emptyArray()
+    get() = CodexCliConfig.getAvailableModels()
+      .ifEmpty {
+        externalEngineModelId()
+          .takeIf { it.isNotBlank() }
+          ?.let(::listOf)
+          ?: emptyList()
+      }
+      .toTypedArray()
 
   private val custom_provider_models: Array<String>
     get() = CustomProviderConfig.getAvailableModels().toTypedArray()
@@ -224,6 +229,9 @@ class Agents(ctx: Context) {
       
       if (provider == "custom" && name.isNotBlank()) {
           CustomProviderConfig.saveModelForActiveProfile(name)
+      }
+      if (provider == "external" && name.isNotBlank()) {
+          CodexCliConfig.saveModelForActiveProfile(name)
       }
 
       sp.edit().putString(PROVIDER_KEY, provider).apply()

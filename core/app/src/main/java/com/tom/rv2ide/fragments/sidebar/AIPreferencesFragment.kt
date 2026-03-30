@@ -58,8 +58,11 @@ class AIPreferencesFragment : Fragment() {
     private lateinit var externalSection: LinearLayout
     private lateinit var externalEngineSummaryText: MaterialTextView
     private lateinit var codexConfigSummaryText: MaterialTextView
+    private lateinit var codexProfileDropdown: AutoCompleteTextView
+    private lateinit var addCodexProfileButton: MaterialButton
+    private lateinit var editCodexProfileButton: MaterialButton
+    private lateinit var deleteCodexProfileButton: MaterialButton
     private lateinit var installCodexButton: MaterialButton
-    private lateinit var configureCodexButton: MaterialButton
     private lateinit var configureExternalEngineButton: MaterialButton
     private lateinit var addCustomProfileButton: MaterialButton
     private lateinit var editCustomProfileButton: MaterialButton
@@ -71,6 +74,7 @@ class AIPreferencesFragment : Fragment() {
     private var completionStateMonitorJob: Job? = null
     private var isCompletionEnabled = true
     private var customProfileIds: List<String> = emptyList()
+    private var codexProfileIds: List<String> = emptyList()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -87,6 +91,7 @@ class AIPreferencesFragment : Fragment() {
         setupProviderDropdown()
         setupModelDropdown()
         setupCustomProfileSection()
+        setupCodexProfileSection()
         setupExternalEngineSection()
         setupToggles()
         updateCurrentStatus()
@@ -101,6 +106,7 @@ class AIPreferencesFragment : Fragment() {
         updateCurrentStatus()
         updateProviderDropdownSelection()
         updateCustomProfileDropdown()
+        updateCodexProfileDropdown()
         updateModelDropdown()
         updateCustomSectionVisibility()
         updateExternalSection()
@@ -125,8 +131,11 @@ class AIPreferencesFragment : Fragment() {
         externalSection = view.findViewById(R.id.externalSection)
         externalEngineSummaryText = view.findViewById(R.id.externalEngineSummaryText)
         codexConfigSummaryText = view.findViewById(R.id.codexConfigSummaryText)
+        codexProfileDropdown = view.findViewById(R.id.codexProfileDropdown)
+        addCodexProfileButton = view.findViewById(R.id.addCodexProfileButton)
+        editCodexProfileButton = view.findViewById(R.id.editCodexProfileButton)
+        deleteCodexProfileButton = view.findViewById(R.id.deleteCodexProfileButton)
         installCodexButton = view.findViewById(R.id.installCodexButton)
-        configureCodexButton = view.findViewById(R.id.configureCodexButton)
         configureExternalEngineButton = view.findViewById(R.id.configureExternalEngineButton)
         addCustomProfileButton = view.findViewById(R.id.addCustomProfileButton)
         editCustomProfileButton = view.findViewById(R.id.editCustomProfileButton)
@@ -194,13 +203,24 @@ class AIPreferencesFragment : Fragment() {
         dialog.show(parentFragmentManager, "CustomProviderConfigDialog")
     }
 
-    private fun showCodexConfigDialog() {
-        val dialog = CodexCliConfigDialog { _ ->
+    private fun showCodexConfigDialog(
+        profileId: String? = CodexCliConfig.getActiveProfileId().takeIf { it.isNotBlank() },
+        createNew: Boolean = false
+    ) {
+        val dialog = CodexCliConfigDialog(
+            profileId = profileId,
+            createNew = createNew
+        ) { _ ->
             CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+            updateCodexProfileDropdown()
             updateExternalSection()
             updateModelDropdown()
             updateCurrentStatus()
-            showSnackbar(getString(R.string.ai_assistant_codex_settings_saved))
+            if (agents.getProvider() == "external") {
+                handleProviderChange("external", providerDisplayName("external"), externalModelLabel())
+            } else {
+                showSnackbar(getString(R.string.ai_assistant_codex_settings_saved))
+            }
         }
         dialog.show(parentFragmentManager, "CodexCliConfigDialog")
     }
@@ -226,6 +246,7 @@ class AIPreferencesFragment : Fragment() {
             "external" -> {
                 listOfNotNull(
                     providerDisplayName(currentProvider),
+                    CodexCliConfig.getActiveProfile()?.name?.takeIf { it.isNotBlank() },
                     externalModelLabel().takeIf { it.isNotBlank() }
                 ).joinToString(" · ")
             }
@@ -345,6 +366,86 @@ class AIPreferencesFragment : Fragment() {
         }
     }
 
+    private fun setupCodexProfileSection() {
+        updateCodexProfileDropdown()
+
+        codexProfileDropdown.setOnItemClickListener { _, _, position, _ ->
+            val selectedProfileId = codexProfileIds.getOrNull(position) ?: return@setOnItemClickListener
+            CodexCliConfig.setActiveProfile(selectedProfileId)
+            CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+            updateCodexProfileDropdown()
+            updateExternalSection()
+            updateModelDropdown()
+            updateCurrentStatus()
+
+            if (agents.getProvider() == "external") {
+                handleProviderChange("external", providerDisplayName("external"), externalModelLabel())
+            } else {
+                val activeProfileName = CodexCliConfig.getActiveProfile()?.name
+                    ?: codexProfileDropdown.text.toString()
+                showSnackbar(
+                    getString(
+                        R.string.ai_assistant_codex_profile_active,
+                        activeProfileName
+                    )
+                )
+            }
+        }
+
+        addCodexProfileButton.setOnClickListener {
+            showCodexConfigDialog(createNew = true)
+        }
+
+        editCodexProfileButton.setOnClickListener {
+            val activeProfileId = CodexCliConfig.getActiveProfileId()
+            if (activeProfileId.isBlank()) {
+                showSnackbar(getString(R.string.ai_assistant_no_codex_profile_to_edit))
+                return@setOnClickListener
+            }
+            showCodexConfigDialog(profileId = activeProfileId)
+        }
+
+        deleteCodexProfileButton.setOnClickListener {
+            val activeProfile = CodexCliConfig.getActiveProfile()
+            if (activeProfile == null) {
+                showSnackbar(getString(R.string.ai_assistant_no_codex_profile_to_delete))
+                return@setOnClickListener
+            }
+
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.ai_assistant_delete_codex_profile_dialog_title)
+                .setMessage(getString(R.string.ai_assistant_delete_codex_profile_dialog_message, activeProfile.name))
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.delete) { _, _ ->
+                    val deleted = CodexCliConfig.deleteProfile(activeProfile.id)
+                    if (!deleted) {
+                        showSnackbar(getString(R.string.ai_assistant_delete_codex_profile_failed))
+                        return@setPositiveButton
+                    }
+
+                    CodexTermuxBridge.ensureManagedPreset(context = requireContext())
+                    updateCodexProfileDropdown()
+                    updateExternalSection()
+                    updateModelDropdown()
+                    updateCurrentStatus()
+
+                    when {
+                        agents.getProvider() == "external" && CodexCliConfig.hasValidConfig() -> {
+                            handleProviderChange("external", providerDisplayName("external"), externalModelLabel())
+                        }
+                        agents.getProvider() == "external" -> {
+                            updateProviderDropdownSelection()
+                            showSnackbar(getString(R.string.ai_assistant_codex_profile_deleted_requires_reselect))
+                        }
+                        else -> {
+                            showSnackbar(getString(R.string.ai_assistant_deleted_profile, activeProfile.name))
+                        }
+                    }
+                }
+                .show()
+        }
+    }
+
     private fun setupExternalEngineSection() {
         installCodexButton.setOnClickListener {
             CodexTermuxBridge.installAndConfigure(
@@ -370,9 +471,6 @@ class AIPreferencesFragment : Fragment() {
                 updateCurrentStatus()
                 showSnackbar(getString(R.string.ai_assistant_codex_preset_applied))
             }
-        }
-        configureCodexButton.setOnClickListener {
-            showCodexConfigDialog()
         }
     }
 
@@ -407,8 +505,36 @@ class AIPreferencesFragment : Fragment() {
         customSection.visibility = View.VISIBLE
     }
 
+    private fun updateCodexProfileDropdown() {
+        val profiles = CodexCliConfig.getProfiles()
+        codexProfileIds = profiles.map { it.id }
+        val profileNames = profiles.map { profile ->
+            if (profile.id == CodexCliConfig.getActiveProfileId()) {
+                getString(
+                    R.string.ai_assistant_codex_profile_active_name,
+                    profile.name,
+                    getString(R.string.ai_assistant_session_active_word)
+                )
+            } else {
+                profile.name
+            }
+        }
+
+        codexProfileDropdown.setAdapter(
+            ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, profileNames)
+        )
+        val activeProfile = CodexCliConfig.getActiveProfile()
+        codexProfileDropdown.setText(activeProfile?.name.orEmpty(), false)
+
+        val hasProfiles = profiles.isNotEmpty()
+        codexProfileDropdown.isEnabled = hasProfiles
+        editCodexProfileButton.isEnabled = hasProfiles
+        deleteCodexProfileButton.isEnabled = hasProfiles
+    }
+
     private fun updateExternalSection() {
         externalSection.visibility = View.VISIBLE
+        updateCodexProfileDropdown()
         val codexStatus = CodexTermuxBridge.status()
         val codexConfig = CodexCliConfig.getSettings()
         externalEngineSummaryText.text = if (ExternalEngineConfig.hasValidConfig()) {
@@ -421,7 +547,13 @@ class AIPreferencesFragment : Fragment() {
             codexStatus.summaryText()
         }
         codexConfigSummaryText.text = if (codexConfig.isValid) {
-            getString(R.string.ai_assistant_codex_config_summary_text, codexConfig.summaryText())
+            getString(
+                R.string.ai_assistant_codex_config_summary_text,
+                listOfNotNull(
+                    codexConfig.normalizedProfileName.takeIf { it.isNotBlank() },
+                    codexConfig.summaryText().takeIf { it.isNotBlank() }
+                ).joinToString(" • ")
+            )
         } else {
             getString(R.string.ai_assistant_codex_config_not_set)
         }
